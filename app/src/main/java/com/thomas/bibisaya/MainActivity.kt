@@ -531,7 +531,7 @@ class MainActivity : Activity() {
             empty.text = when {
                 seen.isEmpty() -> "Ton lexique se remplit à chaque séance.\nFais ta première séance pour y voir tes premiers mots !"
                 else -> "Rien trouvé pour « $lexQuery »."
-            }
+            }.frenchSpaces()
             chipViews.forEachIndexed { i, chip ->
                 val on = i == lexFilter
                 chip.box(if (on) C.NAVY else C.WHITE, 999, C.NAVY, 3)
@@ -602,7 +602,7 @@ class MainActivity : Activity() {
             val holder = (convertView?.tag as? WordHolder) ?: WordHolder()
             holder.ceb.text = item.ceb
             holder.ceb.textSize = if (item.isWord) 18f else 16f
-            holder.fr.text = item.fr
+            holder.fr.text = item.fr.frenchSpaces()
             holder.bars.level = progress.level(item)
             holder.bars.invalidate()
             val next = rows.getOrNull(position + 1)

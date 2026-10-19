@@ -118,6 +118,11 @@ fun Number.fr(): String = NumberFormat.getIntegerInstance(Locale.FRANCE).format(
 
 fun String.capitalized(): String = replaceFirstChar { it.uppercase() }
 
+/** Les espaces insécables du français : jamais de « » », de « ? » ou de « : » seul au début d'une ligne. */
+fun String.frenchSpaces(): String =
+    replace("« ", "«\u00A0").replace(" »", "\u00A0»").replace(" ?", "\u00A0?").replace(" !", "\u00A0!")
+        .replace(" :", "\u00A0:").replace(" ;", "\u00A0;")
+
 fun Context.text(
     value: CharSequence,
     size: Float,
@@ -126,7 +131,7 @@ fun Context.text(
     spacing: Float = 0f,
     line: Float = 1.15f,
 ): TextView = TextView(this).apply {
-    text = value
+    text = if (value is String) value.frenchSpaces() else value
     textSize = size
     setTextColor(color)
     typeface = Fonts.get(weight, size)
@@ -665,11 +670,16 @@ object Gloss {
         }
         bubble.addView(c.text(word, 17f, 800, C.YELLOW))
         bubble.addView(c.text(meaning ?: "pas de traduction pour ce petit mot", 15f, 600, C.WHITE))
-        val p = PopupWindow(bubble, WRAP, WRAP, false)
+        // Pas plus large que l'écran : un long sens passe à la ligne.
+        val maxWidth = c.resources.displayMetrics.widthPixels - c.dp(40)
+        bubble.measure(
+            View.MeasureSpec.makeMeasureSpec(maxWidth, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        val p = PopupWindow(bubble, bubble.measuredWidth, WRAP, false)
         p.isOutsideTouchable = true
         p.isTouchable = true
         p.elevation = 0f
-        bubble.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val xOff = (anchor.width - bubble.measuredWidth) / 2
         p.showAsDropDown(anchor, xOff, -anchor.height - bubble.measuredHeight - c.dp(6))
         popup = p
@@ -730,7 +740,7 @@ class DottedUnderline(private val color: Int, private val thickness: Float) : Dr
 /** Un texte où les passages entre ** sont en gras : « La bonne réponse est **bata**. » */
 fun Context.rich(value: String, size: Float, weight: Int = 500, color: Int = C.NAVY, line: Float = 1.35f): TextView {
     val sb = SpannableStringBuilder()
-    value.split("**").forEachIndexed { i, part ->
+    value.frenchSpaces().split("**").forEachIndexed { i, part ->
         val start = sb.length
         sb.append(part)
         if (i % 2 == 1) sb.setSpan(FontSpan(Fonts.get(800, size)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)

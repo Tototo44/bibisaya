@@ -437,15 +437,15 @@ class SessionActivity : Activity() {
 
     /** Le sens de la mauvaise réponse choisie : « balay », c'est la maison. */
     private fun meaningOf(ex: Exercise, chosen: String): String? = when (ex.kind) {
-        Kind.CHOOSE_CEB -> content.itemsWithForm(Answers.normalize(chosen)).firstOrNull { it.line == ex.item.line }?.let { o ->
-            if (o.isWord) "« ${o.ceb} », c'est ${o.fr}." else "« ${o.ceb} » veut dire « ${o.fr} »."
-        }
-        Kind.CHOOSE_FR -> content.items(ex.item.line).firstOrNull { it.fr == chosen }?.let { o ->
-            if (o.isWord) "« ${o.fr} », c'est ${o.ceb}." else "« ${o.fr} » se dit « ${o.ceb} »."
-        }
-        Kind.GAP -> content.gloss(chosen)?.let { "« $chosen » veut dire « $it »." }
+        Kind.CHOOSE_CEB -> content.itemsWithForm(Answers.normalize(chosen)).firstOrNull { it.line == ex.item.line }?.let { meaning(it.ceb, it) }
+        Kind.CHOOSE_FR -> content.items(ex.item.line).firstOrNull { it.fr == chosen }?.let { o -> "« ${o.fr} » se dit **${o.ceb}**." }
+        Kind.GAP -> content.gloss(chosen)?.let { "**$chosen** veut dire « $it »." }
         else -> null
     }
+
+    /** « **balay**, c'est la maison. » */
+    private fun meaning(ceb: String, o: Item): String =
+        if (o.isWord) "**$ceb**, c'est ${o.fr}." else "**$ceb** veut dire « ${o.fr} »."
 
     private inner class OptionView(value: String, long: Boolean) : LinearLayout(this@SessionActivity) {
         private val size = if (long) 18f else 22f
@@ -581,9 +581,7 @@ class SessionActivity : Activity() {
             )
             Answers.Verdict.WRONG -> {
                 val lines = mutableListOf("La bonne réponse est **${item.ceb}**.")
-                content.itemsWithForm(Answers.normalize(typed)).firstOrNull()?.let { o ->
-                    lines.add(0, if (o.isWord) "« ${typed.trim()} », c'est ${o.fr}." else "« ${typed.trim()} » veut dire « ${o.fr} ».")
-                }
+                content.itemsWithForm(Answers.normalize(typed)).firstOrNull()?.let { o -> lines.add(0, meaning(typed.trim(), o)) }
                 wrongPanel(item, fb, lines)
             }
         }
@@ -835,7 +833,7 @@ class SessionActivity : Activity() {
         if (correct) {
             rightPanel(ex.item, fb, lines = listOf("Toutes les paires du premier coup !"), due = false)
         } else {
-            val lines = wrong.take(3).map { if (it.isWord) "« ${it.ceb} », c'est ${it.fr}." else "« ${it.ceb} » veut dire « ${it.fr} »." }
+            val lines = wrong.take(3).map { meaning(it.ceb, it) }
             wrongPanel(wrong.first(), fb, lines, several = wrong.size > 1)
         }
     }

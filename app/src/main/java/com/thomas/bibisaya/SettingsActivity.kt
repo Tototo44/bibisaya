@@ -89,13 +89,12 @@ class SettingsActivity : Activity() {
             r.addView(text("${slot.label} · ${names[slot]}", 16f, 700), lp(0, WRAP, 1f))
             val button = text("", 17f, 800).apply {
                 gravity = Gravity.CENTER
-                pad(14, 0, 14, 0)
                 box(C.CREAM, 12, C.NAVY, 3)
                 squishy()
             }
             showTime(button, slot, times.of(slot))
             button.onTap { pickTime(slot, button) }
-            r.addView(button, LinearLayout.LayoutParams(WRAP, dp(44)))
+            r.addView(button, LinearLayout.LayoutParams(dp(84), dp(44)))
             card.addView(r, lp())
         }
 
