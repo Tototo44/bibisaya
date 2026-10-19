@@ -324,11 +324,12 @@ class MainActivity : Activity() {
                 }
             }
             val top = hbox(8)
-            top.addView(text(line.label, 14f, 800), lp(0, WRAP, 1f))
+            top.addView(text(line.label, 14f, 800).apply { maxLines = 1 }, lp(WRAP, WRAP))
             top.addView(text(if (stop == null) "Terminus !" else "arrêt ${stop.number} · ${stop.title}", 14f, 600).apply {
+                gravity = Gravity.END
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
-            })
+            }, lp(0, WRAP, 1f))
             row.addView(top, lp())
             val bar = Bar(this, C.TRACK, C.YELLOW, dpf(2))
             bar.fraction = if (stop == null) 1f else progress.knownCount(stop).toFloat() / stop.items.size
@@ -699,7 +700,13 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_HORIZONTAL
             onTap { badgeSheet(badge, today) }
         }
-        cell.addView(badgeCircle(badge, got, 70, 32), LinearLayout.LayoutParams(dp(if (got) 73 else 70), dp(if (got) 73 else 70)))
+        // Une pastille gagnée a une ombre de 3 dp : les autres gardent la même place, pour que les noms restent alignés.
+        cell.addView(badgeCircle(badge, got, 70, 32), LinearLayout.LayoutParams(dp(if (got) 73 else 70), dp(if (got) 73 else 70)).apply {
+            if (!got) {
+                rightMargin = dp(3)
+                bottomMargin = dp(3)
+            }
+        })
         cell.addView(text(badge.title, 14f, 800, color).apply { gravity = Gravity.CENTER }, lp(MATCH, WRAP))
         val (cur, target) = progress.badgeProgress(content, badge, today)
         val counted = badge in listOf(Badge.STREAK7, Badge.STREAK30, Badge.PERFECT10, Badge.WORDS50, Badge.WORDS100)

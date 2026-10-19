@@ -3,7 +3,9 @@ package com.thomas.bibisaya
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.graphics.Paint
 import android.text.InputType
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -255,18 +257,29 @@ class SessionActivity : Activity() {
             top.addView(text(lesson.intro, 16f, 500, line = 1.35f))
             addView(top, lp())
             if (lesson.rules.isNotEmpty()) {
-                val table = vbox().apply { box(C.WHITE, 18, C.NAVY, 3) }
+                val table = vbox().apply {
+                    pad(3, 3, 3, 3)
+                    box(C.WHITE, 18, C.NAVY, 3)
+                }
+                // Les formes à gauche si la plus longue tient dans une colonne, sinon chacune au-dessus de son sens.
+                val formPaint = Paint().apply {
+                    typeface = Fonts.get(800, 22f)
+                    textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 22f, resources.displayMetrics)
+                }
+                val widest = lesson.rules.maxOf { formPaint.measureText(it.form) }.toInt() + dp(4)
+                val rowWidth = resources.displayMetrics.widthPixels - dp(20 + 20 + 6 + 28)
+                val side = widest <= rowWidth * 0.42f
+                val column = maxOf(dp(78), widest)
                 lesson.rules.forEachIndexed { i, rule ->
                     if (i > 0) table.addView(dashes(C.DASH, 2))
-                    val short = rule.form.length <= 6
-                    val row = if (short) hbox(14) else vbox(4)
+                    val row = if (side) hbox(14) else vbox(4)
                     row.pad(14, 12, 14, 12)
-                    val form = text(rule.form, if (short) 22f else 20f, 800, C.LABEL, line = 1.1f)
+                    val form = text(rule.form, 22f, 800, C.LABEL, line = 1.1f)
                     val words = vbox(1)
                     words.addView(text(rule.meaning, 15f, 700, line = 1.25f))
                     words.addView(text(rule.example, 15f, 500, line = 1.25f))
-                    if (short) {
-                        row.addView(form, LinearLayout.LayoutParams(dp(78), WRAP))
+                    if (side) {
+                        row.addView(form, LinearLayout.LayoutParams(column, WRAP))
                         row.addView(words, lp(0, WRAP, 1f))
                     } else {
                         row.addView(form, lp())
@@ -294,7 +307,7 @@ class SessionActivity : Activity() {
         }
         actionFooter(
             if (lessonOnly) navyButton("FERMER", 56, 18f) { finish() }
-            else primaryButton("J'AI COMPRIS, ON S'ENTRAÎNE →", 60, 18f) { next() }
+            else primaryButton("J'AI COMPRIS →", 60, 20f) { next() }
         )
     }
 
@@ -916,7 +929,7 @@ class SessionActivity : Activity() {
         if (right) {
             val row = hbox(10)
             row.addIcon(R.drawable.ic_check_circle, 28, C.GREEN_TEXT)
-            row.addView(text(title, 22f, 800, titleColor), lp(0, WRAP, 1f))
+            row.addView(text(title, if (title.length > 25) 19f else 22f, 800, titleColor), lp(0, WRAP, 1f))
             col.addView(row, lp())
         } else {
             col.addView(text(title, 22f, 800, titleColor))
