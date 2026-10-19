@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="jeepney_cream">#FFF8E6</color>
+    <color name="jeepney_navy">#1B2A6B</color>
+    <color name="jeepney_red">#D0261D</color>
+    <color name="jeepney_yellow">#FFC928</color>
+</resources>

@@ -1,0 +1,932 @@
+# BiBisaya : tout le contenu de l'appli.
+#
+# Format :
+#   === LIGNE              (VOCAB, SIMPLE, COMPLEX, GLOSES)
+#   --- n | Titre de l'arrêt [| sous-titre]
+#   cebuano = français [; clé: valeur]...
+#     + au début : ajouté par Claude (pas dans les cours) -> à faire relire par un collègue
+#     tip: astuce affichée sur la carte « nouveau mot »
+#     alt: autres réponses acceptées, séparées par " / "
+#     syn: groupe de mots proches (jamais proposés comme piège l'un pour l'autre)
+#     en: sens en anglais (pour la liste du collègue)
+#     id: identifiant fixe (pour garder la progression si l'orthographe change)
+#   [bon|piège|piège|piège] : trou à compléter (la 1re réponse est la bonne)
+#   > intro: / > regle: forme | sens | exemple / > exemple: cebuano = français  (petite leçon)
+
+=== VOCAB
+
+--- 1 | Les mots magiques
+oo = oui ; tip: Se prononce « o-o », avec un petit arrêt au milieu. ; en: yes
+dili = non ; tip: Dili, c'est « non » pour maintenant ou plus tard. Pour le passé, on dit wala. ; en: no
+salamat = merci
+palihug = s'il te plaît ; alt: palihog ; tip: On l'entend aussi « palihog ».
++daghang salamat = merci beaucoup ; tip: Daghang veut dire « beaucoup de ». ; en: thank you very much
++walay sapayan = de rien ; tip: Mot à mot : « ce n'est rien ». ; en: you're welcome
+pasayloa ko = pardon, excuse-moi ; tip: Pour s'excuser. On dit aussi : pasensya.
+kumusta = comment ça va ? ; tip: Vient de l'espagnol « ¿cómo está? ».
+maayo = bien, bon ; syn: bon ; tip: Maayo kaayo = très bien. Kaayo veut dire « très ».
++sige = d'accord ; tip: On l'entend partout : « Sige ! » = OK, vas-y ! ; en: okay, go ahead
+
+--- 2 | Les gens
+tawo = la personne ; tip: Mga tawo = les gens. Mga sert à faire le pluriel.
+lalake = l'homme, le garçon ; alt: lalaki
+babaye = la femme, la fille
+bata = l'enfant ; syn: enfant ; tip: Mga bata = les enfants.
+higala = l'ami, l'amie ; alt: amigo / amiga ; tip: On dit aussi amigo et amiga, comme en espagnol.
+silingan = le voisin, la voisine
+bisita = le visiteur ; tip: Comme en espagnol « visita ».
+tigulang = la personne âgée ; syn: vieux
+estudyante = l'élève, l'étudiant ; tip: De l'espagnol « estudiante ».
+maestro = le professeur ; alt: maestra ; tip: Pour une femme, on dit maestra.
+panday = le charpentier
+misyonero = le missionnaire
+Kristyano = chrétien
+miyembro = le membre
+opisyales = le responsable officiel
+
+--- 3 | La famille
+amahan = le père ; tip: On dit aussi papa.
+inahan = la mère ; tip: On dit aussi mama.
+anak = l'enfant (fils ou fille) ; syn: enfant ; tip: Anak, c'est l'enfant de quelqu'un. Un enfant en général, c'est bata.
+igsoon = le frère, la sœur ; alt: igsuon ; tip: Un seul mot pour frère et sœur !
+lolo = le grand-père
+lola = la grand-mère
+apo = le petit-enfant
+asawa = l'épouse
+bana = le mari
+pamilya = la famille ; tip: De l'espagnol « familia ».
+uyab = le petit ami, la petite amie
+ginikanan = les parents
+
+--- 4 | La maison
+balay = la maison
+kwarto = la chambre ; tip: De l'espagnol « cuarto ».
+kusina = la cuisine ; tip: Ça vient de l'espagnol « cocina ». Beaucoup de mots cebuanos viennent de l'espagnol : lamesa, kwarto, sapatos…
+sala = le salon ; tip: Comme la « salle » en français.
+lamesa = la table ; tip: De l'espagnol « la mesa ».
+bangko = la chaise, le banc ; tip: Bangko veut aussi dire « la banque ».
+katre = le lit
+hagdanan = l'escalier ; tip: Aussi l'échelle.
+koral = la clôture
++pultahan = la porte ; en: door
++bintana = la fenêtre ; tip: De l'espagnol « ventana ». ; en: window
+banyo = les toilettes ; tip: De l'espagnol « baño ». On dit aussi « CR » (comfort room).
+
+--- 5 | L'école
+eskwelahan = l'école ; alt: eskuwelahan ; tip: De l'espagnol « escuela ».
+klase = la classe
+leksyon = la leçon
+libro = le livre
+lapis = le crayon ; tip: De l'espagnol « lápiz ».
+papel = le papier
++bolpen = le stylo ; tip: De l'anglais « ballpen ». ; en: pen
++kwaderno = le cahier ; tip: De l'espagnol « cuaderno ». ; en: notebook
++pisara = le tableau (noir) ; en: blackboard
++pangutana = la question ; tip: Mangutana = poser une question. ; en: question
++tubag = la réponse ; en: answer
+direktor = le directeur
+
+--- 6 | Les nombres
+usa = un ; tip: Usa ka bata = un enfant. Ka relie le nombre au mot.
++duha = deux ; en: two
+tulo = trois
+upat = quatre
++lima = cinq ; tip: Facile : comme la ville de Lima ! ; en: five
++unom = six ; en: six
++pito = sept ; en: seven
++walo = huit ; en: eight
++siyam = neuf ; en: nine
+napulo = dix ; tip: Pour l'argent et l'heure, on utilise souvent les nombres espagnols : diyes (10), baynte (20)…
+baynte = vingt (en espagnol) ; tip: Les prix se disent souvent en espagnol : baynte pesos = 20 pesos.
++gatos = cent ; tip: Usa ka gatos = cent. ; en: hundred
+
+--- 7 | Décrire les gens
+Pilipino = philippin ; tip: On dit aussi Pinoy (et Pinay pour une femme), c'est familier.
+Amerikano = américain
+Pranses = français ; tip: Comme toi ! Pranses ko = je suis français.
+gwapo = beau (pour un homme) ; syn: beau ; tip: De l'espagnol « guapo ».
+gwapa = belle (pour une femme) ; syn: beau
+taas = grand (de taille) ; syn: grand ; tip: Taas veut aussi dire « long » : taas nga dalan, une longue route.
+mubo = petit (de taille) ; syn: petit ; tip: Aussi « court ».
+tambok = gros
++niwang = mince ; en: thin
+kusgan = fort ; syn: fort
+buotan = gentil
+kugihan = travailleur
+tapulan = paresseux
+dato = riche ; alt: datu
+pobre = pauvre ; tip: De l'espagnol « pobre ».
+
+--- 8 | Les couleurs
++kolor = la couleur ; en: color
+puti = blanc
+itom = noir ; alt: itum
+pula = rouge
++asul = bleu ; tip: De l'espagnol « azul ». ; en: blue
++berde = vert ; tip: De l'espagnol « verde ». ; en: green
++dalag = jaune ; tip: Comme le jeepney de BiBisaya ! ; en: yellow
++rosas = rose (la couleur) ; en: pink
++abuhon = gris ; tip: Vient de abo, la cendre. ; en: gray
+
+--- 9 | Décrire les choses
+dako = grand, gros ; alt: daku ; syn: grand
+gamay = petit ; syn: petit ; tip: Gamay ra = juste un peu.
+bag-o = neuf, nouveau
+daan = vieux (pour une chose) ; syn: vieux ; tip: Pour une personne âgée, on dit tigulang.
+init = chaud
+bugnaw = froid
+nindot = beau, joli ; syn: beau ; tip: Nindot kaayo ! = C'est super beau !
+dautan = mauvais, méchant
+lisod = difficile
+sayon = facile
+lig-on = solide ; syn: fort
+lingin = rond
+daghan = beaucoup, nombreux
+
+--- 10 | La nourriture
+pagkaon = la nourriture ; tip: Vient de kaon, manger.
+kan-on = le riz (cuit) ; syn: riz ; tip: Le riz pas encore cuit, c'est bugas.
+bugas = le riz (pas cuit) ; syn: riz
+pan = le pain
+isda = le poisson
+manok = le poulet
++itlog = l'œuf ; en: egg
+prutas = le fruit
+saging = la banane
+mangga = la mangue
+gulay = les légumes ; alt: utan ; tip: On dit aussi utan.
+kamatis = la tomate
+mansanas = la pomme
+
+--- 11 | Boire et cuisiner
+tubig = l'eau
+gatas = le lait
+kape = le café ; tip: Magkape ta = on prend un café ?
+sabaw = la soupe
+baso = le verre ; tip: De l'espagnol « vaso ».
+plato = l'assiette
+inom = boire ; tip: Pour les verbes, on apprend la racine. Seule, elle donne un ordre : Inom ! = Bois !
+kaon = manger ; tip: Kaon na ta ! = On mange !
+luto = cuisiner
+lami = délicieux ; syn: bon ; tip: Lami kaayo ! = C'est délicieux !
+tam-is = sucré
+piniritong manok = le poulet frit ; tip: Pinirito = frit, de l'espagnol « frito ».
+puno = plein
+
+--- 12 | La ville
+siyudad = la ville ; alt: syudad
+dalan = la route, le chemin ; syn: rue
+karsada = la rue ; syn: rue
+kanto = le coin de la rue
+merkado = le marché
+tindahan = la boutique ; tip: De l'espagnol « tienda ».
+ospital = l'hôpital
+simbahan = l'église
+sinehan = le cinéma ; tip: Sine = le film. Sinehan = l'endroit où on voit des films.
+sine = le film
+dyip = le jeepney ; tip: Le célèbre bus coloré des Philippines, comme dans BiBisaya !
+lugar = l'endroit ; tip: Lugar lang ! = arrêtez-vous ici (pour descendre du jeepney).
+layo = loin
+
+--- 13 | La nature
+dagat = la mer
+kahoy = l'arbre, le bois
+bulak = la fleur
+uma = la ferme, le champ
+iro = le chien
++iring = le chat ; en: cat
+langgam = l'oiseau ; tip: Attention : en tagalog, langgam veut dire « fourmi » !
+ulan = la pluie
++bukid = la montagne ; en: mountain
++hangin = le vent ; en: wind
++suba = la rivière ; en: river
+
+--- 14 | Objets et vêtements
+sanina = le vêtement, la chemise ; alt: sinina
+pantalon = le pantalon ; alt: karsones
+sapatos = les chaussures ; tip: De l'espagnol « zapatos ».
+tsinelas = les tongs ; tip: Les sandales qu'on porte partout aux Philippines.
+relo = la montre ; tip: De l'espagnol « reloj ».
+payong = le parapluie
+kwarta = l'argent ; tip: L'argent qu'on dépense (pas le métal).
+telebisyon = la télévision ; alt: tv
+magasin = le magazine
++selpon = le téléphone portable ; tip: De l'anglais « cellphone ». ; en: cellphone
++bag = le sac ; en: bag
+
+--- 15 | Bouger
+adto = aller ; tip: Moadto ko = j'y vais. Adto ! = Va !
+lakaw = marcher, partir
+abot = arriver
++uli = rentrer (à la maison) ; en: to go home
+balhin = déménager
+duol = s'approcher
+lingkod = s'asseoir
+tindog = se lever
+higda = s'allonger
+lukso = sauter
+saka = monter
+sunod = suivre
+suroy = se promener ; syn: balade
+laag = sortir (se balader) ; syn: balade
+
+--- 16 | La journée
+buntag = le matin ; tip: Maayong buntag = bonjour (le matin).
+udto = midi
+hapon = l'après-midi
+gabii = le soir, la nuit
+mata = se réveiller ; id: v:mata-reveil ; tip: Mata veut aussi dire « l'œil » : on ouvre les yeux !
++ligo = se laver, se doucher ; en: to take a bath
++tulog = dormir ; en: to sleep
+trabaho = travailler ; tip: Aussi « le travail ».
+laba = laver le linge
+limpyo = nettoyer
+simba = aller à la messe
+ampo = prier
+Bibliya = la Bible
+wali = prêcher
+
+--- 17 | Parler et apprendre
+sulti = dire, parler ; syn: parler
+istorya = raconter, discuter ; alt: estorya ; syn: parler ; tip: Aussi « l'histoire » qu'on raconte.
+basa = lire
+sulat = écrire ; tip: Aussi « la lettre ».
+tuon = étudier ; tip: Magtuon ta ! = On étudie !
+tudlo = enseigner
+tawag = appeler
+kanta = chanter ; tip: Aussi « la chanson ».
+tan-aw = regarder
++sabot = comprendre ; tip: Wala ko kasabot = je ne comprends pas. ; en: to understand
++hibalo = savoir ; tip: Wala ko kahibalo = je ne sais pas. ; en: to know
+brayt = intelligent ; tip: De l'anglais « bright ».
+Binisaya = le bisaya (la langue) ; tip: On dit aussi Bisaya ou Sinugbuanon.
+Iningles = l'anglais (la langue)
+
+--- 18 | Donner et aider
+hatag = donner
+dala = apporter
+hulam = emprunter ; tip: Pwede ko manghulam ? = Je peux emprunter ?
+palit = acheter
++bayad = payer ; en: to pay
++tabang = aider ; tip: Tabang ! = Au secours ! ; en: to help
+katabang = l'aide (la personne qui aide) ; tip: Ka + tabang (aider).
+hangyo = demander un service
+pabor = le service, la faveur ; tip: De l'espagnol « favor ».
+pili = choisir
+salig = faire confiance
+kuyog = accompagner ; syn: accompagner
+uban = aller avec quelqu'un ; syn: accompagner
+apas = rattraper
+problema = le problème ; tip: Walay problema ! = Pas de problème !
+
+--- 19 | Le corps
+lawas = le corps
++ulo = la tête ; en: head
+nawong = le visage
+mata = l'œil ; id: v:mata ; tip: Mata veut aussi dire « se réveiller » : on ouvre les yeux !
++ilong = le nez ; en: nose
++baba = la bouche ; tip: Ne confonds pas baba (la bouche) et bata (l'enfant). ; en: mouth
+ngipon = la dent
++dalunggan = l'oreille ; en: ear
++buhok = les cheveux ; en: hair
++kamot = la main ; en: hand
++tiil = le pied ; en: foot
++tiyan = le ventre ; en: stomach, belly
+
+--- 20 | Les émotions
+gugma = l'amour ; tip: Gihigugma tika = je t'aime.
+malipayon = heureux
++masulub-on = triste ; en: sad
++kalipay = la joie ; en: joy
++kapoy = fatigué ; en: tired
++nasuko = en colère ; en: angry
++nahadlok = avoir peur ; en: afraid
++ganahan = aimer bien ; tip: Ganahan ko ani = j'aime ça. ; en: to like
++gimingaw = quelqu'un vous manque ; tip: Gimingaw ko nimo = tu me manques. ; en: to miss someone
+hilak = pleurer
+katawa = rire
+
+--- 21 | La santé
+sakit = la maladie, la douleur ; tip: Sakit, c'est aussi « qui fait mal » : sakit ang akong ulo, j'ai mal à la tête.
+doktor = le médecin
+nars = l'infirmière, l'infirmier
+tambal = le médicament
+tabletas = le comprimé
++hilanat = la fièvre ; en: fever
++ubo = la toux ; en: cough
++sip-on = le rhume ; en: cold (runny nose)
++samad = la blessure ; en: wound
++dugo = le sang ; en: blood
+tutunlan = la gorge
+
+--- 22 | Le temps qui passe
++karon = maintenant, aujourd'hui ; syn: jour ; en: now, today
+ugma = demain
++gahapon = hier ; en: yesterday
+unya = plus tard
+ganiha = plus tôt (aujourd'hui) ; tip: Ganiha = tout à l'heure, dans le passé.
+adlaw = le jour, le soleil ; syn: jour
+semana = la semaine ; tip: De l'espagnol « semana ».
++bulan = le mois, la lune ; en: month, moon
++tuig = l'année ; en: year
+oras = l'heure ; tip: De l'espagnol « hora ».
++kanunay = toujours ; en: always
++usahay = parfois ; en: sometimes
+
+--- 23 | Avec les enfants
+dula = jouer ; tip: Magdula ta ! = On joue !
+dulaan = le jouet
+bola = le ballon
+bugoy = turbulent, coquin
+hilumon = calme, sage ; tip: Hilom ! = Silence !
+saba = bruyant ; alt: langas
+kuyaw = dangereux ; tip: Kuyaw ! = Attention, c'est dangereux !
++hugaw = sale ; en: dirty
++hinay = doucement ; tip: Hinay-hinay ! = Doucement ! ; en: slowly, gently
++dali = vite ; tip: Dali ! = Viens vite ! ; en: quick, hurry
++dagan = courir ; en: to run
++ayaw = ne… pas ! (pour interdire) ; tip: Ayaw dagan ! = Ne cours pas ! ; en: don't
++lingaw = amusant ; tip: Lingaw kaayo ! = Trop amusant ! ; en: fun
+
+=== SIMPLE
+
+--- 1 | Saluer
+Maayong buntag! = Bonjour ! (le matin)
+Maayong udto! = Bonjour ! (à midi)
+Maayong hapon! = Bonjour ! (l'après-midi)
+Maayong gabii! = Bonsoir !
+Maayong buntag pod. = Bonjour à toi aussi. ; alt: Maayong buntag sab. ; tip: Pour répondre, on ajoute pod ou sab : « aussi ».
+Kumusta ka? = Comment vas-tu ? ; alt: Kumusta na ka?
+Maayo man. = Je vais bien.
+Okay ra. = Ça va. ; tip: Ra veut dire « juste » : juste OK.
+Mao ra gihapon. = Comme d'habitude. ; tip: Mot à mot : toujours pareil.
++Amping! = Prends soin de toi ! ; tip: Pour dire au revoir. ; en: Take care!
+
+--- 2 | Se présenter
+Ako si Thomas. = Je suis Thomas.
+Akong pangalan kay Thomas. = Je m'appelle Thomas.
+Unsa ang imong pangalan? = Comment t'appelles-tu ? ; alt: Unsay imong pangalan?
+Pranses ko. = Je suis français.
++Taga-Pransya ko. = Je viens de France. ; en: I'm from France.
+Nagpuyo ko sa Cebu. = J'habite à Cebu.
+Taga-asa ka? = D'où viens-tu ?
+Asa ka nagpuyo? = Où habites-tu ?
++Nagtrabaho ko uban sa mga bata. = Je travaille avec des enfants. ; en: I work with children.
+Nagtuon ko og Bisaya. = J'apprends le bisaya.
+
+--- 3 | Poser des questions
+Unsa ni? = Qu'est-ce que c'est ?
+Unsa kini sa Bisaya? = Comment dit-on ça en bisaya ?
+Kinsa ka? = Qui es-tu ?
+Kinsa siya? = Qui est-ce ?
+Asa ka padulong? = Où vas-tu ?
+Kanus-a ka naabot? = Quand es-tu arrivé ?
+Ngano man? = Pourquoi ?
++Pila na imong edad? = Quel âge as-tu ? ; en: How old are you?
+Unsa ang trabaho nimo? = Quel est ton travail ? ; alt: Unsay trabaho nimo?
+Unsaon pagsulti og salamat sa Bisaya? = Comment dit-on « merci » en bisaya ?
+
+--- 4 | Au marché
+Tagpila ni? = Combien ça coûte ?
+Tagpila ang usa ka kilo? = Combien coûte un kilo ?
+Tagpila ni tanan? = Combien pour le tout ?
+Tag-diyes ang usa. = C'est dix pesos l'un.
+Usa ka kilo sa bugas. = Un kilo de riz.
++Mahal kaayo! = C'est très cher ! ; en: It's very expensive!
++Naa moy saging? = Vous avez des bananes ? ; en: Do you have bananas?
++Mopalit ko ani. = Je vais acheter ça. ; en: I'll buy this.
+Lami kaayo! = C'est délicieux !
+
+--- 5 | Se déplacer
+Asa ang banyo? = Où sont les toilettes ?
+Asa ang merkado? = Où est le marché ?
+Moadto ko sa eskwelahan. = Je vais à l'école.
+Niadto ko sa mall. = Je suis allé au centre commercial.
+Nasaag ko. = Je suis perdu. ; alt: Nawala ko.
++Layo pa? = C'est encore loin ? ; en: Is it still far?
++Lugar lang! = Ici, s'il vous plaît ! (pour descendre) ; tip: Ce qu'on crie au chauffeur pour descendre du jeepney. ; en: Stop here, please! (getting off a jeepney)
+Diin ka gikan? = D'où viens-tu (où étais-tu) ?
+Asa na ka? = Où es-tu maintenant ?
+Mokuyog ka? = Tu viens avec nous ?
+
+--- 6 | Comprendre
+Wala ko kasabot. = Je ne comprends pas.
+Unsa imong pasabot? = Qu'est-ce que tu veux dire ?
+Unsa imong gisulti? = Qu'est-ce que tu as dit ?
+Isuwat palihug. = Écris-le, s'il te plaît. ; alt: Isuwat palihog.
++Hinay-hinay lang. = Plus lentement, s'il te plaît. ; en: Slowly, please.
++Balika palihug. = Répète, s'il te plaît. ; en: Repeat, please.
+Mo istorya ka og Iningles? = Tu parles anglais ?
++Kabalo ko og gamay nga Bisaya. = Je parle un peu bisaya. ; en: I know a little Bisaya.
++Wala ko kahibalo. = Je ne sais pas. ; en: I don't know.
+
+--- 7 | Besoins et sentiments
+Gigutom ko. = J'ai faim. ; alt: Gi-gutom ko.
+Giuhaw ko. = J'ai soif. ; alt: Gi-uhaw ko.
+Gitugnaw ko. = J'ai froid.
++Kapoy na ko. = Je suis fatigué. ; en: I'm tired.
+Naglibog ko. = Je suis perdu (je ne comprends plus rien).
+Pasensya kaayo ha. = Je suis vraiment désolé.
+Gihigugma tika. = Je t'aime.
++Gimingaw ko nimo. = Tu me manques. ; en: I miss you.
++Ganahan ko ani. = J'aime ça. ; en: I like this.
++Malipayon ko. = Je suis heureux. ; en: I'm happy.
+
+--- 8 | La santé
+Galain akong lawas. = Je ne me sens pas bien.
+Naa koy sakit. = Je suis malade.
++Sakit ang akong ulo. = J'ai mal à la tête. ; en: I have a headache.
+Sakit ang akong ngipon. = J'ai mal aux dents.
+Sakit ang tutunlan nako. = J'ai mal à la gorge.
+Nalipong ko. = J'ai la tête qui tourne.
+Kasukaon ko. = J'ai la nausée. ; alt: Kasokaon ko.
++Naa koy hilanat. = J'ai de la fièvre. ; en: I have a fever.
+Imna ning tabletas. = Prends ce comprimé.
+Unsay tambal imong giinom? = Quel médicament as-tu pris ?
+
+--- 9 | Avec les enfants
++Lingkod na mo. = Asseyez-vous. ; en: Sit down now (to a group).
++Hilom! = Silence ! ; en: Quiet!
++Paminaw mo. = Écoutez. ; en: Listen (to a group).
++Dali diri! = Viens ici ! ; en: Come here!
++Kaon na ta! = On mange ! ; en: Let's eat!
++Magdula ta! = On joue ! ; en: Let's play!
++Ayaw dagan! = Ne cours pas ! ; en: Don't run!
++Ayaw kabalaka. = Ne t'inquiète pas. ; en: Don't worry.
++Nindot kaayo imong drowing! = Ton dessin est très beau ! ; en: Your drawing is very nice!
+Maayo kaayo! = Très bien !
+
+--- 10 | Avec les collègues
++Maayong buntag sa tanan! = Bonjour à tous ! ; en: Good morning, everyone!
++Unsa atong buhaton karon? = Qu'est-ce qu'on fait aujourd'hui ? ; en: What are we doing today?
++Pwede ko mangutana? = Je peux te poser une question ? ; en: Can I ask a question?
+Pwede ko manghulam og bolpen? = Je peux t'emprunter un stylo ? ; alt: Pwede ko mang hulam og bolpen?
++Salamat sa imong tabang. = Merci pour ton aide. ; en: Thank you for your help.
+Unsa atong orderon? = Qu'est-ce qu'on commande ?
+Mangaon ta! = Allons manger !
+Magkape ta. = On prend un café ?
++Kita-kita ta ugma. = À demain ! ; en: See you tomorrow.
+
+=== COMPLEX
+
+--- 1 | Je, tu, il | ako, ikaw, siya…
+> intro: Pas de verbe « être » en cebuano : on dit d'abord comment on est, puis qui. Les formes courtes (ko, ka, ta, mi, mo) ne commencent jamais la phrase.
+> regle: ako · ko | je | Taas ako. = Je suis grand.
+> regle: ikaw · ka | tu | Pilipino ka. = Tu es philippin.
+> regle: siya | il, elle | Gwapa siya. = Elle est belle.
+> regle: kita · ta | nous (avec toi) | Kusgan kita. = Nous sommes forts.
+> regle: kami · mi | nous (sans toi) | Mga Pilipino kami.
+> regle: kamo · mo | vous | Buotan kamo. = Vous êtes gentils.
+> regle: sila | ils, elles | Mga bata sila.
+> exemple: Estudyante siya. = Il est étudiant.
+> exemple: Maestro ko. = Je suis professeur.
+Taas [ako|ikaw|siya|sila]. = Je suis grand.
+Pilipino [ka|ko|siya|sila]. = Tu es philippin.
+Estudyante [siya|ako|ka|kami]. = Il est étudiant.
+Gwapa [siya|ako|ka|kamo]. = Elle est belle.
+Mga bata [sila|siya|ako|ka]. = Ce sont des enfants.
+Mga Pilipino [kami|siya|ako|ka]. = Nous sommes philippins (pas toi).
+Kusgan [kita|siya|ako|ka]. = Nous sommes forts (toi et moi).
+Maestro [ko|ka|siya|sila]. = Je suis professeur.
+Buotan [kamo|ako|siya|ka]. = Vous êtes gentils.
++Pranses [ako|ikaw|siya|sila]. = Je suis français. ; en: I am French.
+
+--- 2 | Les petits mots si et ang | si, ang, ang mga
+> intro: Devant un prénom, on met si. Devant une chose ou un nom commun, on met ang (le, la). Au pluriel : ang mga, et sila si pour plusieurs prénoms.
+> regle: si | devant un prénom | Pilipino si Pablo.
+> regle: ang | le, la | Nindot ang lamesa.
+> regle: ang mga | les | Bugoy ang mga bata.
+> regle: sila si | plusieurs prénoms | Sila si Perla ug si Tessie.
+> exemple: Buotan si Ernesto. = Ernesto est gentil.
+> exemple: Puti ang papel. = Le papier est blanc.
+Pilipino [si|ang|sa|ni] Pablo. = Pablo est philippin.
+Nindot [ang|si|sa|ni] lamesa. = La table est belle.
+Bugoy [ang mga|si|sa|sila si] bata. = Les enfants sont turbulents.
+Buotan [si|ang|sa|ang mga] Ernesto. = Ernesto est gentil.
+Ako [si|ang|sa|ang mga] Thomas. = Je suis Thomas.
+Dato [sila si|si|ang|ang mga] Marvin ug Annie. = Marvin et Annie sont riches.
+Lig-on [ang mga|si|sa|sila si] bangko. = Les chaises sont solides.
+Puti [ang|si|sila si|ni] papel. = Le papier est blanc.
++Gwapa [si|ang|sa|ang mga] Maria. = Maria est belle. ; en: Maria is beautiful.
++Kugihan [ang mga|si|sila si|sa] estudyante. = Les élèves sont travailleurs. ; en: The students are hardworking.
+
+--- 3 | Ce, ça | kini, kana, kadto
+> intro: Il y a trois « ce » selon la distance : kini (près de moi), kana (près de toi), kadto (loin, là-bas). Formes courtes : ni, na, to.
+> regle: kini · ni | ceci (près de moi) | Tubig kini. = C'est de l'eau.
+> regle: kana · na | cela (près de toi) | Lamesa kana. = C'est une table.
+> regle: kadto · to | cela (là-bas) | Kahoy kadto. = Là-bas, c'est un arbre.
+> exemple: Unsa ni? = Qu'est-ce que c'est ?
+> exemple: Dagat to. = Là-bas, c'est la mer.
+Tubig [kini|kana|kadto|siya]. = C'est de l'eau (près de moi).
+Lamesa [kana|kini|kadto|siya]. = C'est une table (près de toi).
+Kahoy [kadto|kini|kana|siya]. = Là-bas, c'est un arbre.
+Mga libro [ni|na|to|ka]. = Ce sont des livres (près de moi).
+Dagat [to|ni|na|ko]. = Là-bas, c'est la mer.
+Init [kini|kana|kadto|ako]. = C'est chaud (près de moi).
+Unsa [na|ni|to|ka]? = Qu'est-ce que c'est (près de toi) ?
+Kinsa [kadto|kini|kana|ikaw]? = Qui est-ce, là-bas ?
+[Kini|Kana|Kadto|Siya] ang tubig. = Voici l'eau (près de moi).
+Mga estudyante [na|ni|to|ko]. = Ce sont des élèves (près de toi).
+
+--- 4 | À moi, à toi | nako, akong…
+> intro: Pour dire « mon, ton, son », on met nako, nimo, niya après la chose, ou akong, imong, iyang avant. Même sens : libro nako = akong libro = mon livre.
+> regle: nako · akong | mon, ma | balay nako = akong balay
+> regle: nimo · imong | ton, ta | inahan nimo = imong inahan
+> regle: niya · iyang | son, sa | iro niya = iyang iro
+> regle: nato · atong | notre (avec toi) | balay nato
+> regle: namo · among | notre (sans toi) | eskwelahan namo
+> regle: ninyo · inyong | votre | iro ninyo
+> regle: nila · ilang | leur | higala nila
+> exemple: Unsa ang imong pangalan? = Comment t'appelles-tu ?
+> exemple: Taas ang akong lolo. = Mon grand-père est grand.
+Libro [nako|nimo|niya|nila] kini. = C'est mon livre.
+Nindot ang [imong|akong|iyang|ilang] balay. = Ta maison est belle.
+Buotan ang inahan [nimo|nako|niya|nila]. = Ta mère est gentille.
+Taas ang [akong|imong|iyang|ilang] lolo. = Mon grand-père est grand.
+Bugoy ang iro [niya|nako|nimo|ninyo]. = Son chien est turbulent.
+Unsa ang [imong|akong|iyang|ilang] pangalan? = Comment t'appelles-tu ?
+Dako ang eskwelahan [namo|nako|nimo|niya]. = Notre école est grande (pas la tienne).
++Gwapa ang [iyang|akong|imong|inyong] uyab. = Sa petite amie est belle. ; en: His girlfriend is beautiful.
+Kini ang [akong|imong|iyang|ilang] amahan. = Voici mon père.
++Nindot ang balay [nato|nako|nila|ninyo]. = Notre maison (à toi et moi) est belle. ; en: Our house (yours and mine) is nice.
+
+--- 5 | De, à | ni, sa, ug
+> intro: Pour dire « de » : ni devant un prénom, sa devant un nom commun. Sa veut aussi dire « à, dans » pour un lieu. Ug, c'est « un, du » devant ce qu'on prend ou mange.
+> regle: ni | de (prénom) | ang balay ni Lorie
+> regle: sa | de (nom commun) | ang libro sa maestra
+> regle: sa | à, dans (lieu) | sa eskwelahan = à l'école
+> regle: ug | un, du | Nikaon siya ug pan.
+> exemple: Lapis ni Lorna kini. = C'est le crayon de Lorna.
+> exemple: Moadto ko sa merkado. = Je vais au marché.
+Ang balay [ni|sa|si|ang] Lorie. = La maison de Lorie.
+Ang libro [sa|ni|si|ang] maestra. = Le livre de la professeure.
+Lapis [ni|sa|si|ang] Lorna kini. = C'est le crayon de Lorna.
+Dulaan [sa mga|ni|si|sila si] bata. = Les jouets des enfants.
+Nagpuyo ko [sa|ni|si|ang] Cebu. = J'habite à Cebu.
+Nikaon siya [ug|si|ni|ang] pan. = Il a mangé du pain.
+Ang sapatos [sa|ni|si|ang] panday. = Les chaussures du charpentier.
+Nindot ang sanina [ni|sa|si|ang] Stacey. = Le vêtement de Stacey est beau.
+Moadto ko [sa|ni|si|ang] merkado. = Je vais au marché.
+Mopalit ako [ug|si|ni|ang] saging sa tindahan. = Je vais acheter une banane à la boutique.
+
+--- 6 | Les verbes en mo- | mo-, ni-, mi-
+> intro: Pour une action courte (manger, aller, acheter…). Mo- : ça va se faire. Ni- ou mi- : c'est fait. La racine seule : un ordre.
+> regle: mo- | ça va se faire | mokaon = va manger
+> regle: ni- · mi- | c'est fait | nikaon = a mangé
+> regle: racine | un ordre | kaon ! = mange !
+> exemple: Mopalit ako ug saging. = Je vais acheter une banane.
+> exemple: Nilakaw siya. = Il est parti.
+[Mopalit|Nipalit|Palit|Mipalit] ako ug saging ugma. = Je vais acheter une banane demain.
+[Nilakaw|Molakaw|Lakaw|Mosunod] siya ganiha. = Il est parti tout à l'heure.
+[Kaon|Mokaon|Nikaon|Mikaon] na! = Mange !
+[Moinom|Niinom|Inom|Mitindog] sila ug tubig. = Ils vont boire de l'eau.
+[Niadto|Moadto|Adto|Motawag] si John sa eskwelahan. = John est allé à l'école.
+[Nisunod|Mosunod|Sunod|Motindog] ang bata. = L'enfant a suivi.
+[Lingkod|Molingkod|Nilingkod|Mipalit] dinhi. = Assieds-toi ici.
+[Mobalhin|Nibalhin|Balhin|Mosimba] sila sa Cebu. = Ils vont déménager à Cebu.
+[Nitawag|Motawag|Tawag|Mokaon] mo. = Vous avez appelé.
++[Moadto|Niadto|Adto|Nikaon] ko sa merkado ugma. = J'irai au marché demain. ; en: I will go to the market tomorrow.
+
+--- 7 | Les verbes en mag- | mag-, nag-, pag-
+> intro: Pour une action qui dure un moment : travailler, étudier, attendre…
+> regle: nag- | c'est fait, ou en train | nagtuon = a étudié, étudie
+> regle: mag- | ça va se faire | magtuon = va étudier
+> regle: pag- | un ordre | pagtuon ! = étudie !
+> exemple: Nagtrabaho ko sa eskwelahan. = Je travaille à l'école.
+> exemple: Magtuon ta ! = On étudie !
+[Nagtuon|Magtuon|Pagtuon|Nagluto] sila. = Ils étudient.
+[Magtrabaho|Nagtrabaho|Pagtrabaho|Maghulat] siya ugma. = Il va travailler demain.
+[Pagtuon|Nagtuon|Magtuon|Pagdala] na! = Étudie !
+[Naghulat|Maghulat|Paghulat|Nagdala] ko nimo. = Je t'attends.
+[Mag-andam|Nag-andam|Pag-andam|Magtuon] mi. = Nous allons nous préparer.
+[Nagminyo|Magminyo|Pagminyo|Nagtrabaho] sila si Rolly ug si Mae. = Rolly et Mae se sont mariés.
+[Nagluto|Magluto|Pagluto|Nagtuon] ang akong inahan. = Ma mère cuisine.
+[Magkape|Nagkape|Pagkape|Magdula] ta. = Prenons un café.
+[Nagdula|Magdula|Pagdula|Nagluto] ang mga bata. = Les enfants jouent.
+[Nagtrabaho|Magtrabaho|Pagtrabaho|Naghulat] ko sa eskwelahan. = Je travaille à l'école.
+
+--- 8 | Ici, là, là-bas | dinhi, dinha, didto
+> intro: Pour dire où : dinhi (ici, près de moi), dinha (là, près de toi), didto (là-bas, loin). On peut préciser le lieu : didto sa kusina.
+> regle: dinhi · diri | ici | Paglukso dinhi. = Saute ici.
+> regle: dinha · dira | là (près de toi) | Lingkod dira. = Assieds-toi là.
+> regle: didto | là-bas | Mokaon mi didto. = On va manger là-bas.
+> exemple: Mopalit ko ug gulay dinha. = Je vais acheter des légumes là.
+> exemple: Magluto siya didto sa kusina. = Elle va cuisiner là-bas, dans la cuisine.
+Lingkod [dira|didto|dinhi|kini]. = Assieds-toi là (près de toi).
+Dali [diri|didto|dira|kana]. = Viens ici.
+Mokaon mi [didto|dinhi|dira|kini] sa McDonald's. = On va manger là-bas, au McDonald's.
+Magluto siya [didto|dinhi|dinha|kana] sa kusina. = Elle va cuisiner là-bas, dans la cuisine.
+Nagtrabaho ko [dinhi|didto|dinha|kini] sa Cebu. = Je travaille ici, à Cebu.
+Mopalit ko ug gulay [dinha|didto|dinhi|kana]. = Je vais acheter des légumes là (près de toi).
++Naa ang iro [didto|dinhi|dinha|kana] sa balay. = Le chien est là-bas, à la maison. ; en: The dog is over there at the house.
+Inom ug tubig [didto|dinha|dinhi|kadto] sa kusina. = Bois de l'eau là-bas, dans la cuisine.
+Paglukso [dinhi|didto|dinha|kini]. = Saute ici.
+Naglaba ang katabang [diha|dinhi|didto|kana]. = L'aide lave le linge là (près de toi).
+
+--- 9 | Pour quelqu'un | para sa, kang
+> intro: Pour dire à qui ou pour qui : kang devant un prénom, sa devant un nom commun. Pour vraiment « pour » : para sa, para kang. Avec un pronom : kanako (à moi), kanimo (à toi), kaniya (à lui)…
+> regle: kang | à (prénom) | Moadto ko kang James.
+> regle: para kang · para sa | pour | para kang Lisa = pour Lisa
+> regle: kanako · kanimo · kaniya | à moi, à toi, à lui | Mosunod mi kanimo.
+> regle: sa ako · sa imo · sa iya | à moi, à toi, à lui | Nihatag siya ug bola sa iya.
+> exemple: Nagpalit siya ug bulak para kang Lisa. = Il a acheté des fleurs pour Lisa.
+> exemple: Mouban siya nako. = Il va venir avec moi.
+Nagpalit siya ug bulak [para kang|para sa|sa|ni] Lisa. = Il a acheté des fleurs pour Lisa.
+Pagdala sa gatas dinhi [para sa|para kang|ni|si] mga bata. = Apporte le lait ici pour les enfants.
+Mosunod mi [kanimo|kanako|kaniya|kanila]. = Nous allons te suivre.
+Mouban siya [nako|nimo|niya|nila]. = Il va venir avec moi.
+Magluto ko [para nila|para nako|para nimo|para niya]. = Je vais cuisiner pour eux.
+Nihatag si Perlita ug bola [sa iya|sa ako|sa imo|sa ila]. = Perlita lui a donné un ballon.
+Mokanta si Liling [sa inyo|sa amo|sa ila|sa iya]. = Liling va chanter pour vous.
+Nagtudlo siya [sa mga|kang|ni|si] estudyante. = Il enseigne aux élèves.
+Nitawag mi [sa|kang|ni|si] doktor. = Nous avons appelé le médecin.
+Moadto ko [kang|sa|ni|si] James. = Je vais voir James.
+
+--- 10 | Le petit mot nga | nga, -ng
+> intro: Nga relie deux mots : taas nga babaye = une grande femme. Après une voyelle, nga devient -ng (dakong balay). Après un n, il devient -g (buotang doktor).
+> regle: nga | après une consonne | taas nga babaye = une grande femme
+> regle: -ng | après une voyelle | dakong balay = une grande maison
+> regle: -g | après un n | buotang doktor = un médecin gentil
+> exemple: Kining lapis. = Ce crayon-ci.
+> exemple: Malipayon nga tawo si Paul. = Paul est quelqu'un d'heureux.
+Taas [nga|ang|sa|si] babaye si Ruth. = Ruth est une grande femme.
+Malipayon [nga|ang|sa|si] tawo si Paul. = Paul est quelqu'un d'heureux.
+Kusgan siya [nga|ang|sa|si] lalake. = C'est un homme fort.
+Hilumon [kanang|kining|kadtong|kana] bata. = Cet enfant (près de toi) est calme.
+Lami [kining|kanang|kadtong|kini] pan. = Ce pain (près de moi) est délicieux.
++Nipalit ko ug puti [nga|ang|sa|si] sapatos. = J'ai acheté des chaussures blanches. ; en: I bought white shoes.
++Nindot [nga|ang|si|sa] balay kini. = C'est une belle maison. ; en: This is a nice house.
++Bag-ong leksyon kini. = C'est une nouvelle leçon. ; en: This is a new lesson.
++Buotang doktor si Ana. = Ana est un médecin gentil. ; en: Ana is a kind doctor.
+Mubo kami [nga|ang|sa|si] mga bata. = Nous sommes de petits enfants.
+
+--- 11 | Grande révision | tout ensemble
+> intro: Tu sais tout ce qu'il faut ! Une phrase cebuano, c'est souvent : le verbe, qui le fait, quoi, puis où ou pour qui.
+> regle: verbe | mo-, mag-… | Mopalit
+> regle: qui | ako, si, ang… | ang imong lolo
+> regle: quoi | ug, sa | ug pan
+> regle: où, pour qui | sa, para sa, kang | para kang Loloy
+> exemple: Mopalit ang imong lolo ug pan dinha sa tindahan para kang Loloy. = Ton grand-père va acheter du pain à la boutique, là, pour Loloy.
+> exemple: Kusgan ug taas ang akong lolo. = Mon grand-père est fort et grand.
+Mohatag si Rey ug sapatos [para sa|para kang|ni|si] iyang higala. = Rey va donner des chaussures à son ami.
+Kadto ang kugihan [nga|ang|sa|si] mga bata namo. = Là-bas, ce sont nos enfants travailleurs.
+Hulam ug lapis [para kang|para sa|ni|si] Stacy. = Emprunte un crayon pour Stacy.
+Gwapo ug dato ang iyang uyab. = Son petit ami est beau et riche.
+Mohulam si Bert [nianang|kana|siya|ang] libro para sa iyang mga estudyante. = Bert va emprunter ce livre pour ses élèves.
+[Nagluto|Magluto|Pagluto|Nagdula] ang iyang inahan ug utan didto sa kusina. = Sa mère a cuisiné des légumes là-bas, dans la cuisine.
+Kusgan ug taas ang [akong|imong|iyang|ilang] lolo. = Mon grand-père est fort et grand.
+Inom [nianang|kana|siya|ang] tubig didto sa kusina. = Bois cette eau-là, dans la cuisine.
+Mokuyog sila si Tony ug Edna [kanato|kanako|kanimo|kaniya] didto sa balay ni Susan. = Tony et Edna vont venir avec nous chez Susan.
+Kana ang among maestro sa [Iningles|Binisaya|Pranses|Pilipino]. = C'est notre professeur d'anglais.
+
+=== GLOSES
+# Le sens de chaque mot des phrases, quand on le touche.
+ako = je, moi
+ko = je (forme courte)
+ikaw = tu, toi
+ka = tu (forme courte)
+siya = il, elle
+kita = nous (avec toi)
+ta = nous (forme courte)
+kami = nous (sans toi)
+mi = nous (sans toi, forme courte)
+kamo = vous
+mo = vous (forme courte)
+sila = ils, elles
+nako = de moi, mon
+nimo = de toi, ton
+niya = de lui, d'elle, son
+nato = notre (avec toi)
+namo = notre (sans toi)
+ninyo = votre
+nila = leur, d'eux
+akong = mon, ma
+imong = ton, ta
+iyang = son, sa
+atong = notre (avec toi)
+among = notre (sans toi)
+inyong = votre
+ilang = leur
+kanako = à moi
+kanimo = à toi
+kaniya = à lui, à elle
+kanato = à nous (avec toi)
+kanila = à eux
+iya = lui, elle (à lui)
+imo = toi (à toi)
+ila = eux (à eux)
+inyo = vous (à vous)
+amo = nous (à nous)
+si = (devant un prénom)
+ang = le, la
+mga = (pluriel)
+sa = à, dans, de
+ni = de (devant un prénom) ou : ceci
+ug = et, ou : un, du
+og = un, du
+kang = à (devant un prénom)
+para = pour
+kini = ceci (près de moi)
+kana = cela (près de toi)
+kadto = cela (là-bas)
+na = déjà, maintenant, ou : cela
+to = cela (là-bas)
+kining = ce… (près de moi)
+kanang = ce… (près de toi)
+kadtong = ce… (là-bas)
+nianang = ce… (près de toi)
+ning = ce…
+ani = ceci (forme courte)
+dinhi = ici
+diri = ici
+dinha = là (près de toi)
+dira = là (près de toi)
+diha = là (près de toi)
+didto = là-bas
+nga = (relie deux mots)
+man = (rend la phrase plus douce)
+ra = juste, seulement
+lang = juste, seulement
+pa = encore
+kaayo = très
+gihapon = toujours (pareil)
+pod = aussi
+sab = aussi
+ha = hein
+kay = (relie : « c'est »)
+mao = c'est ça
+unsa = quoi
+unsay = quoi (unsa + ang)
+unsaon = comment
+kinsa = qui
+asa = où
+diin = d'où
+kanus-a = quand
+ngano = pourquoi
+pila = combien
+tagpila = combien (le prix)
+tag-diyes = dix pesos chacun
+taga = de (originaire de)
+taga-asa = d'où
+taga-pransya = de France
+pangalan = le nom
+trabaho = le travail, travailler
+edad = l'âge
+kilo = le kilo
+tanan = tout, tous
+mall = le centre commercial
+cebu = Cebu
+bisaya = le bisaya (la langue)
+okay = OK
+maayong = bon (maayo + ng)
+kumusta = comment ça va
+naa = il y a, être là
+moy = vous avez (mo + y)
+koy = j'ai (ko + y)
+wala = non, pas (passé)
+walay = pas de
+pwede = pouvoir, on peut
+mahal = cher
+pasensya = désolé
+amping = prends soin de toi
+padulong = en route vers
+naabot = est arrivé
+gikan = venant de
+nasaag = perdu
+nawala = perdu
+kasabot = comprendre
+kahibalo = savoir
+kabalo = savoir
+pasabot = le sens (ce qu'on veut dire)
+gisulti = ce qu'on a dit
+isuwat = écris-le
+palihog = s'il te plaît
+balika = répète
+hinay-hinay = doucement, lentement
+istorya = parler
+pagsulti = dire
+gigutom = avoir faim
+giuhaw = avoir soif
+gitugnaw = avoir froid
+naglibog = être perdu, confus
+gihigugma = aimer (d'amour)
+tika = je… te
+gimingaw = (quelqu'un) manque
+galain = pas bien
+lawas = le corps
+nalipong = avoir la tête qui tourne
+kasukaon = avoir la nausée
+imna = bois-le, prends-le
+giinom = ce qu'on a bu, pris
+hilom = silence
+paminaw = écoute
+dali = vite, viens
+kabalaka = s'inquiéter
+drowing = le dessin
+mangutana = poser une question
+manghulam = emprunter
+buhaton = faire
+orderon = commander
+mangaon = aller manger
+magkape = prendre un café
+kita-kita = se revoir
+nagpuyo = habiter
+nagtrabaho = travailler (en ce moment)
+nagtuon = étudier (en ce moment)
+uban = avec
+moadto = aller (bientôt)
+niadto = est allé
+mokuyog = venir avec
+mopalit = acheter (bientôt)
+mipalit = a acheté
+nipalit = a acheté
+nagpalit = a acheté
+palit = achète !
+nilakaw = est parti
+molakaw = va partir
+lakaw = pars !
+mosunod = va suivre
+nisunod = a suivi
+sunod = suis !
+mokaon = va manger
+nikaon = a mangé
+mikaon = a mangé
+kaon = mange !
+moinom = va boire
+niinom = a bu
+inom = bois !
+mitindog = s'est levé
+motindog = va se lever
+adto = va !
+motawag = va appeler
+nitawag = a appelé
+tawag = appelle !
+molingkod = va s'asseoir
+nilingkod = s'est assis
+lingkod = assieds-toi
+mobalhin = va déménager
+nibalhin = a déménagé
+balhin = déménage !
+mosimba = va aller à la messe
+magtuon = va étudier
+pagtuon = étudie !
+nagluto = a cuisiné, cuisine
+magluto = va cuisiner
+pagluto = cuisine !
+magtrabaho = va travailler
+pagtrabaho = travaille !
+maghulat = va attendre
+naghulat = attend
+paghulat = attends !
+nagdala = a apporté
+pagdala = apporte !
+mag-andam = va se préparer
+nag-andam = s'est préparé
+pag-andam = prépare-toi !
+nagminyo = s'est marié
+magminyo = va se marier
+pagminyo = marie-toi !
+nagkape = a pris un café
+pagkape = prends un café !
+magdula = va jouer
+nagdula = joue
+pagdula = joue !
+paglukso = saute !
+naglaba = lave le linge
+mouban = va venir avec
+nihatag = a donné
+mohatag = va donner
+mokanta = va chanter
+nagtudlo = enseigne
+mohulam = va emprunter
+hulam = emprunte !
+mcdonald's = McDonald's
+pablo = Pablo (un prénom)
+thomas = Thomas
+ernesto = Ernesto (un prénom)
+marvin = Marvin (un prénom)
+annie = Annie (un prénom)
+maria = Maria (un prénom)
+john = John (un prénom)
+rolly = Rolly (un prénom)
+mae = Mae (un prénom)
+lorie = Lorie (un prénom)
+lorna = Lorna (un prénom)
+stacey = Stacey (un prénom)
+stacy = Stacy (un prénom)
+lisa = Lisa (un prénom)
+perlita = Perlita (un prénom)
+liling = Liling (un prénom)
+james = James (un prénom)
+ruth = Ruth (un prénom)
+paul = Paul (un prénom)
+ana = Ana (un prénom)
+rey = Rey (un prénom)
+bert = Bert (un prénom)
+tony = Tony (un prénom)
+edna = Edna (un prénom)
+susan = Susan (un prénom)
+dakong = grand (dako + ng)
+bag-ong = nouveau (bag-o + ng)
+buotang = gentil (buotan + g)
+puting = blanc (puti + ng)

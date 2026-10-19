@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.BiBisaya" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/jeepney_navy</item>
+        <item name="android:colorPrimaryDark">@color/jeepney_navy</item>
+        <item name="android:colorAccent">@color/jeepney_red</item>
+        <item name="android:colorBackground">@color/jeepney_cream</item>
+        <item name="android:windowBackground">@color/jeepney_cream</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:textColorPrimary">@color/jeepney_navy</item>
+    </style>
+
+    <!-- Les fenêtres de dialogue : fond transparent, la carte est dessinée par l'appli -->
+    <style name="Theme.BiBisaya.Dialog" parent="android:Theme.Material.Light.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimAmount">0.55</item>
+        <item name="android:colorAccent">@color/jeepney_red</item>
+    </style>
+
+    <!-- Le choix de l'heure dans les réglages -->
+    <style name="Theme.BiBisaya.TimePicker" parent="android:Theme.Material.Light.Dialog">
+        <item name="android:colorAccent">@color/jeepney_red</item>
+        <item name="android:colorPrimary">@color/jeepney_navy</item>
+    </style>
+</resources>
