@@ -448,7 +448,7 @@ class SessionActivity : Activity() {
             Buzz.wrong(this)
             val lines = mutableListOf<Any>()
             whyWrong(ex, chosen)?.let { lines.add(it) }
-            lines.add(if (ex.kind == Kind.GAP) "La bonne phrase : **${ex.item.ceb}**" else "La bonne réponse est **${ex.answer}**.")
+            lines.add(if (ex.kind == Kind.GAP) "La bonne phrase : **${ex.item.ceb}**" else "La bonne réponse est **${ex.answer}**${dot(ex.answer)}")
             wrongPanel(ex.item, fb, lines)
         }
     }
@@ -467,14 +467,17 @@ class SessionActivity : Activity() {
     /** Le sens de la mauvaise réponse choisie : « balay », c'est la maison. */
     private fun meaningOf(ex: Exercise, chosen: String): String? = when (ex.kind) {
         Kind.CHOOSE_CEB -> content.itemsWithForm(Answers.normalize(chosen)).firstOrNull { it.line == ex.item.line }?.let { meaning(it.ceb, it) }
-        Kind.CHOOSE_FR -> content.items(ex.item.line).firstOrNull { it.fr == chosen }?.let { o -> "« ${o.fr} » se dit **${o.ceb}**." }
+        Kind.CHOOSE_FR -> content.items(ex.item.line).firstOrNull { it.fr == chosen }?.let { o -> "« ${o.fr} » se dit **${o.ceb}**${dot(o.ceb)}" }
         Kind.GAP -> content.gloss(chosen)?.let { "**$chosen** veut dire « $it »." }
         else -> null
     }
 
     /** « **balay**, c'est la maison. » */
     private fun meaning(ceb: String, o: Item): String =
-        if (o.isWord) "**$ceb**, c'est ${o.fr}." else "**$ceb** veut dire « ${o.fr} »."
+        if (o.isWord) "**$ceb**, c'est ${o.fr}${dot(o.fr)}" else "**$ceb** veut dire « ${o.fr} »."
+
+    /** Le point de fin de phrase, sauf si le texte finit déjà par « . », « ? » ou « ! » (pas de « ko.. »). */
+    private fun dot(value: String): String = if (value.trimEnd().lastOrNull()?.let { it in ".?!…" } == true) "" else "."
 
     private inner class OptionView(value: String, list: Boolean, private val size: Float) : LinearLayout(this@SessionActivity) {
         private val mark = icon(R.drawable.ic_check, C.GREEN_TEXT).apply { visibility = View.GONE }
@@ -671,9 +674,9 @@ class SessionActivity : Activity() {
             mark(input, verdict != Answers.Verdict.WRONG)
             when (verdict) {
                 Answers.Verdict.RIGHT -> rightPanel(item, fb)
-                Answers.Verdict.TYPO -> rightPanel(item, fb, title = almost(fb), lines = listOf("Ça s'écrit **${item.ceb}**."))
+                Answers.Verdict.TYPO -> rightPanel(item, fb, title = almost(fb), lines = listOf("Ça s'écrit **${item.ceb}**${dot(item.ceb)}"))
                 Answers.Verdict.WRONG -> {
-                    val lines = mutableListOf<Any>("La bonne réponse est **${item.ceb}**.")
+                    val lines = mutableListOf<Any>("La bonne réponse est **${item.ceb}**${dot(item.ceb)}")
                     content.itemsWithForm(Answers.normalize(typed)).firstOrNull()?.let { o -> lines.add(0, meaning(typed.trim(), o)) }
                     wrongPanel(item, fb, lines, accept = accept)
                 }

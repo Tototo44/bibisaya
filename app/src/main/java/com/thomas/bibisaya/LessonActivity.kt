@@ -39,7 +39,11 @@ class LessonActivity : Activity() {
             addLesson(body, stop, content)
             body.addView(View(this), lp(MATCH, 0, 1f))
             val practice = vbox(8)
-            practice.addView(primaryButton("S'ENTRAÎNER SUR CETTE LEÇON", 60, 18f) {
+            // Sur une seule ligne, même sur un petit téléphone : le texte rapetisse un peu s'il le faut.
+            val title = "S'ENTRAÎNER SUR CETTE LEÇON"
+            val room = resources.displayMetrics.widthPixels - dp(20 + 20 + 16 + 16 + 11 + 10)
+            val size = listOf(18f, 17f, 16f, 15f).firstOrNull { textWidth(title, it, 800) <= room } ?: 14f
+            practice.addView(primaryButton(title, 60, size) {
                 startActivity(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_PRACTICE, stop.key))
             }, lp())
             val n = minOf(Planner.EXERCISES, stop.items.size)

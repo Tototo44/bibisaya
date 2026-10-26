@@ -12,8 +12,8 @@ import com.thomas.bibisaya.engine.Sheet
 import com.thomas.bibisaya.engine.SheetTable
 import com.thomas.bibisaya.engine.Stop
 
-/** La largeur d'un texte, pour savoir s'il tient dans une colonne. */
-private fun Context.textWidth(value: String, size: Float, weight: Int): Int {
+/** La largeur d'un texte, pour savoir s'il tient dans une colonne (ou sur un bouton). */
+fun Context.textWidth(value: String, size: Float, weight: Int): Int {
     val paint = Paint().apply {
         typeface = Fonts.get(weight, size)
         textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, size, resources.displayMetrics)
@@ -137,7 +137,8 @@ private fun Context.addTable(into: LinearLayout, table: SheetTable) {
         }
     }
     head.addView(android.view.View(this), LinearLayout.LayoutParams(first, 1))
-    for (c in table.columns) head.addView(cell(c, 12f, 800, C.YELLOW, 0.06f), lp(0, WRAP, 1f))
+    // Un titre trop long (« APRÈS UN VERBE ») passe à la ligne plutôt que d'être coupé.
+    for (c in table.columns) head.addView(text(c, 12f, 800, C.YELLOW, 0.06f, line = 1.1f), lp(0, WRAP, 1f))
     card.addView(head, lp())
     table.rows.forEachIndexed { i, row ->
         if (i > 0) card.addView(dashes())
@@ -147,7 +148,8 @@ private fun Context.addTable(into: LinearLayout, table: SheetTable) {
             val forms = value.split(" · ")
             val col = vbox()
             col.addView(cell(forms[0], 15f, 800, if (k == 0) C.LABEL else C.NAVY), lp())
-            if (forms.size > 1) col.addView(cell(forms[1], 12f, 600, C.NAVY), lp())
+            // La forme pour plusieurs peut passer à la ligne (« kang … ug kang »).
+            if (forms.size > 1) col.addView(text(forms[1], 12f, 600, C.NAVY, line = 1.1f), lp())
             line.addView(col, lp(0, WRAP, 1f))
         }
         card.addView(line, lp())
@@ -162,8 +164,8 @@ private fun Context.addTable(into: LinearLayout, table: SheetTable) {
 }
 
 /** Une case : sur une seule ligne, quitte à rapetisser un peu un mot trop long. */
-private fun Context.cell(value: String, size: Float, weight: Int, color: Int, spacing: Float = 0f): TextView =
-    text(value, size, weight, color, spacing).apply {
+private fun Context.cell(value: String, size: Float, weight: Int, color: Int): TextView =
+    text(value, size, weight, color).apply {
         maxLines = 1
         setAutoSizeTextTypeUniformWithConfiguration((size * 0.7f).toInt().coerceAtLeast(9), size.toInt(), 1, TypedValue.COMPLEX_UNIT_SP)
     }
