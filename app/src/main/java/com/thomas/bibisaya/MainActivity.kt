@@ -23,19 +23,21 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import com.thomas.bibisaya.engine.Answers
 import com.thomas.bibisaya.engine.Badge
 import com.thomas.bibisaya.engine.Content
 import com.thomas.bibisaya.engine.Item
 import com.thomas.bibisaya.engine.Line
 import com.thomas.bibisaya.engine.Plan
+import com.thomas.bibisaya.engine.Planner
 import com.thomas.bibisaya.engine.Progress
 import com.thomas.bibisaya.engine.Slot
 import com.thomas.bibisaya.engine.SlotState
 import com.thomas.bibisaya.engine.Stop
 import com.thomas.bibisaya.engine.Times
 
-/** L'accueil, avec ses 4 onglets : Accueil, Route, Lexique, Badges. */
+/** L'accueil, avec ses 5 onglets : Accueil, Route, Leçons, Lexique, Badges. */
 class MainActivity : Activity() {
     private lateinit var store: Store
     private lateinit var content: Content
@@ -95,22 +97,21 @@ class MainActivity : Activity() {
         if (tab != TAB_HOME) select(TAB_HOME) else super.onBackPressed()
     }
 
-    /** Mode démo (captures d'écran) : ouvre directement un exercice ou les réglages. */
+    /** Mode démo (captures d'écran) : ouvre directement un exercice, une leçon ou les réglages. */
     private fun openDemo() {
         val step = intent.getStringExtra(SessionActivity.EXTRA_DEMO_STEP) ?: return
-        if (step == "SETTINGS") {
-            startActivity(Intent(this, SettingsActivity::class.java))
-            return
+        when (step) {
+            "SETTINGS" -> startActivity(Intent(this, SettingsActivity::class.java))
+            "NOTIF" -> Notify.show(this, Slot.SOIR)
+            "LESSON_TAB" -> openLesson("c7")
+            "SHEET_QUESTIONS" -> openSheet("questions")
+            "SHEET_TABLEAU" -> openSheet("tableau")
+            else -> startActivity(
+                Intent(this, SessionActivity::class.java)
+                    .putExtra(SessionActivity.EXTRA_DEMO_STEP, step)
+                    .putExtra(SessionActivity.EXTRA_DEMO_ANSWER, intent.getStringExtra(SessionActivity.EXTRA_DEMO_ANSWER))
+            )
         }
-        if (step == "NOTIF") {
-            Notify.show(this, Slot.SOIR)
-            return
-        }
-        startActivity(
-            Intent(this, SessionActivity::class.java)
-                .putExtra(SessionActivity.EXTRA_DEMO_STEP, step)
-                .putExtra(SessionActivity.EXTRA_DEMO_ANSWER, intent.getStringExtra(SessionActivity.EXTRA_DEMO_ANSWER))
-        )
     }
 
     /** Sur Android 13 et plus, il faut demander la permission d'afficher les rappels. */
@@ -133,6 +134,7 @@ class MainActivity : Activity() {
         page.addView(
             when (tab) {
                 TAB_ROUTE -> route()
+                TAB_LESSONS -> lessons()
                 TAB_LEXICON -> lexicon()
                 TAB_BADGES -> badges()
                 else -> home()
@@ -157,6 +159,7 @@ class MainActivity : Activity() {
         val items = listOf(
             R.drawable.ic_home to "Accueil",
             R.drawable.ic_route to "Route",
+            R.drawable.ic_cap to "Leçons",
             R.drawable.ic_book to "Lexique",
             R.drawable.ic_medal to "Badges",
         )
@@ -256,6 +259,9 @@ class MainActivity : Activity() {
         }
         body.addView(slots, lp())
 
+        // Traduire, en plus des séances
+        body.addView(translateCard(), lp().apply { topMargin = dp(4) })
+
         // Les 3 lignes
         body.addView(linesCard(), lp().apply { topMargin = dp(4) })
         return screen(h, scroll(body))
@@ -343,6 +349,43 @@ class MainActivity : Activity() {
         val i = Intent(this, SessionActivity::class.java)
         if (slot != null) i.putExtra(SessionActivity.EXTRA_SLOT, slot.code) else i.putExtra(SessionActivity.EXTRA_BONUS, true)
         startActivity(i)
+    }
+
+    /** « Traduire » : 10 mots ou 10 phrases déjà vus, en plus des 3 séances. */
+    private fun translateCard(): View {
+        val card = vbox(10).apply {
+            pad(14, 12, 14, 16)
+            box(C.WHITE, 16, C.NAVY, 3)
+        }
+        val title = hbox()
+        title.addView(text("Traduire", 20f, 800), lp(0, WRAP, 1f))
+        title.addView(text("en plus de tes séances", 13f, 700))
+        card.addView(title, lp())
+        val row = hbox(14).apply { gravity = Gravity.TOP }
+        for (words in listOf(true, false)) {
+            val seen = content.items.count { it.isWord == words && progress.isIntroduced(it) }
+            val n = if (seen == 0) Planner.EXERCISES else minOf(Planner.EXERCISES, seen)
+            val button = vbox(1).apply {
+                pad(12, 8, 12, 8)
+                box(C.YELLOW, 14, C.NAVY, 3, C.NAVY, 4)
+                contentDescription = "Traduire $n ${if (words) "mots" else "phrases"}"
+                onTap { startTranslation(words, seen) }
+            }
+            button.addView(text("$n ${if (words) (if (n > 1) "mots" else "mot") else (if (n > 1) "phrases" else "phrase")}", 21f, 800))
+            button.addView(text("à traduire →", 13f, 700))
+            row.addView(button, lp(0, WRAP, 1f))
+        }
+        card.addView(row, lp())
+        return card
+    }
+
+    private fun startTranslation(words: Boolean, seen: Int) {
+        if (seen == 0) {
+            val what = if (words) "des mots" else "des phrases"
+            Toast.makeText(this, "Il faut d'abord voir $what en séance : ensuite, tu pourras les traduire.", Toast.LENGTH_LONG).show()
+            return
+        }
+        startActivity(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_TRANSLATE, if (words) "WORDS" else "PHRASES"))
     }
 
     // ---------- Route ----------
@@ -451,12 +494,94 @@ class MainActivity : Activity() {
                 row.minimumHeight = dp(48)
             }
         }
-        if (stop.lesson != null && state != RouteRail.FUTURE) {
-            row.onTap {
-                startActivity(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_LESSON, stop.key))
-            }
-        }
+        if (stop.lesson != null && state != RouteRail.FUTURE) row.onTap { openLesson(stop.key) }
         return row
+    }
+
+    // ---------- Leçons ----------
+
+    private fun lessons(): View {
+        val lessons = content.lessons
+        val seen = lessons.count { isSeen(it.key) }
+        val h = header(6)
+        val top = hbox()
+        top.addView(text("LEÇONS", 30f, 800, line = 0.95f), lp(0, WRAP, 1f))
+        top.addView(
+            text(
+                when (seen) {
+                    0 -> "${lessons.size} à découvrir"
+                    1 -> "1 sur ${lessons.size} déjà vue"
+                    else -> "$seen sur ${lessons.size} déjà vues"
+                },
+                14f, 700,
+            )
+        )
+        h.addView(top, lp())
+        h.addView(text("Toutes sont ouvertes : tu peux lire en avance.", 14f, 600, line = 1.2f))
+
+        val body = vbox(10).apply { pad(20, 14, 20, 20) }
+        body.addView(label("LES ${lessons.size} LEÇONS DE GRAMMAIRE"))
+        val list = listCard()
+        lessons.forEachIndexed { i, stop ->
+            if (i > 0) list.addView(dashes())
+            val badge = text("${stop.number}", 16f, 800, C.YELLOW).apply {
+                gravity = Gravity.CENTER
+                box(C.NAVY, 10)
+            }
+            list.addView(lessonRow(badge, stop.title, stop.preview, isSeen(stop.key)) { openLesson(stop.key) }, lp())
+        }
+        body.addView(list, lp())
+        if (content.sheets.isNotEmpty()) {
+            body.addView(label("FICHES").apply { pad(0, 6, 0, 0) })
+            val sheets = listCard()
+            content.sheets.forEachIndexed { i, sheet ->
+                if (i > 0) sheets.addView(dashes())
+                val badge = FrameLayout(this).apply { box(C.RED, 10) }
+                if (sheet.tables.isEmpty()) {
+                    badge.addView(text("?", 19f, 800, C.WHITE).apply { gravity = Gravity.CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
+                } else {
+                    badge.addView(icon(R.drawable.ic_table, C.WHITE), FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
+                }
+                val sub = sheet.subtitle ?: ""
+                sheets.addView(lessonRow(badge, sheet.title, sub, false) { openSheet(sheet.key) }, lp())
+            }
+            body.addView(sheets, lp())
+        }
+        return screen(h, scroll(body))
+    }
+
+    /** Une leçon déjà vue en séance, ou déjà ouverte ici. */
+    private fun isSeen(key: String) = key in progress.lessonsSeen || key in progress.lessonsRead
+
+    private fun listCard(): LinearLayout = vbox().apply {
+        pad(3, 3, 3, 3)
+        box(C.WHITE, 18, C.NAVY, 3)
+    }
+
+    /** Une ligne de l'onglet Leçons : la pastille, le titre et ses mots, puis ✓ (déjà vue) ou une flèche. */
+    private fun lessonRow(badge: View, title: String, sub: String, seen: Boolean, open: () -> Unit): View {
+        val row = hbox(12).apply {
+            pad(12, 8, 12, 8)
+            minimumHeight = dp(56)
+            contentDescription = if (seen) "$title, déjà vue" else title
+            squishy()
+            onTap(open)
+        }
+        row.addView(badge, LinearLayout.LayoutParams(dp(34), dp(34)))
+        val words = vbox()
+        words.addView(text(title, 17f, 800, line = 1.1f))
+        if (sub.isNotEmpty()) words.addView(text(sub, 14f, 500, line = 1.15f))
+        row.addView(words, lp(0, WRAP, 1f))
+        if (seen) row.addIcon(R.drawable.ic_check_circle, 24, C.GREEN) else row.addIcon(R.drawable.ic_chevron, 20, C.NAVY)
+        return row
+    }
+
+    private fun openLesson(key: String) {
+        startActivity(Intent(this, LessonActivity::class.java).putExtra(LessonActivity.EXTRA_STOP, key))
+    }
+
+    private fun openSheet(key: String) {
+        startActivity(Intent(this, LessonActivity::class.java).putExtra(LessonActivity.EXTRA_SHEET, key))
     }
 
     // ---------- Lexique ----------
@@ -738,8 +863,9 @@ class MainActivity : Activity() {
         const val EXTRA_DEMO = "demo"
         const val TAB_HOME = 0
         const val TAB_ROUTE = 1
-        const val TAB_LEXICON = 2
-        const val TAB_BADGES = 3
+        const val TAB_LESSONS = 2
+        const val TAB_LEXICON = 3
+        const val TAB_BADGES = 4
 
         fun badgeIcon(badge: Badge) = when (badge.icon) {
             "ticket" -> R.drawable.ic_ticket

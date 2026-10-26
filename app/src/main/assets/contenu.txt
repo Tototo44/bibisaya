@@ -12,6 +12,12 @@
 #     id: identifiant fixe (pour garder la progression si l'orthographe change)
 #   [bon|piège|piège|piège] : trou à compléter (la 1re réponse est la bonne)
 #   > intro: / > regle: forme | sens | exemple / > exemple: cebuano = français  (petite leçon)
+#
+#   === FICHES : les fiches de l'onglet Leçons
+#   --- clé | Titre | sous-titre
+#   > intro:   > mot: mot | sens [| exemple = traduction]   > astuce: texte [| exemple]
+#   > titre: (un tableau)   > colonnes: A | B…   > ligne: libellé | case | case…   > note:   > exemple:
+#   Une case peut avoir deux formes : « ako · ko ». Les ** mettent un passage en gras.
 
 === VOCAB
 
@@ -357,19 +363,19 @@ Maayong hapon! = Bonjour ! (l'après-midi)
 Maayong gabii! = Bonsoir !
 Maayong buntag pod. = Bonjour à toi aussi. ; alt: Maayong buntag sab. ; tip: Pour répondre, on ajoute pod ou sab : « aussi ».
 Kumusta ka? = Comment vas-tu ? ; alt: Kumusta na ka?
-Maayo man. = Je vais bien.
-Okay ra. = Ça va. ; tip: Ra veut dire « juste » : juste OK.
+Maayo man. = Je vais bien. ; syn: bien
+Okay ra. = Ça va. ; tip: Ra veut dire « juste » : juste OK. ; syn: bien
 Mao ra gihapon. = Comme d'habitude. ; tip: Mot à mot : toujours pareil.
 +Amping! = Prends soin de toi ! ; tip: Pour dire au revoir. ; en: Take care!
 
 --- 2 | Se présenter
-Ako si Thomas. = Je suis Thomas.
-Akong pangalan kay Thomas. = Je m'appelle Thomas.
+Ako si Thomas. = Je suis Thomas. ; syn: nom
+Akong pangalan kay Thomas. = Je m'appelle Thomas. ; syn: nom
 Unsa ang imong pangalan? = Comment t'appelles-tu ? ; alt: Unsay imong pangalan?
 Pranses ko. = Je suis français.
 +Taga-Pransya ko. = Je viens de France. ; en: I'm from France.
 Nagpuyo ko sa Cebu. = J'habite à Cebu.
-Taga-asa ka? = D'où viens-tu ?
+Taga-asa ka? = D'où viens-tu ? ; syn: dou
 Asa ka nagpuyo? = Où habites-tu ?
 +Nagtrabaho ko uban sa mga bata. = Je travaille avec des enfants. ; en: I work with children.
 Nagtuon ko og Bisaya. = J'apprends le bisaya.
@@ -402,10 +408,10 @@ Asa ang banyo? = Où sont les toilettes ?
 Asa ang merkado? = Où est le marché ?
 Moadto ko sa eskwelahan. = Je vais à l'école.
 Niadto ko sa mall. = Je suis allé au centre commercial.
-Nasaag ko. = Je suis perdu. ; alt: Nawala ko.
+Nasaag ko. = Je suis perdu. ; alt: Nawala ko. ; syn: perdu
 +Layo pa? = C'est encore loin ? ; en: Is it still far?
 +Lugar lang! = Ici, s'il vous plaît ! (pour descendre) ; tip: Ce qu'on crie au chauffeur pour descendre du jeepney. ; en: Stop here, please! (getting off a jeepney)
-Diin ka gikan? = D'où viens-tu (où étais-tu) ?
+Diin ka gikan? = D'où viens-tu (où étais-tu) ? ; syn: dou
 Asa na ka? = Où es-tu maintenant ?
 Mokuyog ka? = Tu viens avec nous ?
 
@@ -425,7 +431,7 @@ Gigutom ko. = J'ai faim. ; alt: Gi-gutom ko.
 Giuhaw ko. = J'ai soif. ; alt: Gi-uhaw ko.
 Gitugnaw ko. = J'ai froid.
 +Kapoy na ko. = Je suis fatigué. ; en: I'm tired.
-Naglibog ko. = Je suis perdu (je ne comprends plus rien).
+Naglibog ko. = Je suis perdu (je ne comprends plus rien). ; syn: perdu
 Pasensya kaayo ha. = Je suis vraiment désolé.
 Gihigugma tika. = Je t'aime.
 +Gimingaw ko nimo. = Tu me manques. ; en: I miss you.
@@ -711,6 +717,8 @@ kanako = à moi
 kanimo = à toi
 kaniya = à lui, à elle
 kanato = à nous (avec toi)
+kanamo = à nous (sans toi)
+kaninyo = à vous
 kanila = à eux
 iya = lui, elle (à lui)
 imo = toi (à toi)
@@ -735,6 +743,8 @@ kining = ce… (près de moi)
 kanang = ce… (près de toi)
 kadtong = ce… (là-bas)
 nianang = ce… (près de toi)
+niini = ceci (après un verbe)
+niana = cela (après un verbe)
 ning = ce…
 ani = ceci (forme courte)
 dinhi = ici
@@ -930,3 +940,48 @@ dakong = grand (dako + ng)
 bag-ong = nouveau (bag-o + ng)
 buotang = gentil (buotan + g)
 puting = blanc (puti + ng)
+
+=== FICHES
+# D'après les cours de Thomas : « Greetings and Questions » et le tableau de la leçon 10.
+
+--- questions | Poser une question | unsa, kinsa, asa, kanus-a…
+> intro: Les mots pour demander quoi, qui, où, quand… Ils se mettent au début de la phrase.
+> mot: unsa | quoi | Unsa ni? = Qu'est-ce que c'est ?
+> mot: kinsa | qui | Kinsa ka? = Qui es-tu ?
+> mot: asa | où | Asa ka nagpuyo? = Où habites-tu ?
+> mot: hain | lequel, où
+> mot: diin | où (avant, au passé) | Diin ka gikan? = D'où viens-tu ?
+> mot: kanus-a | quand | Kanus-a ka naabot? = Quand es-tu arrivé ?
+> mot: ngano | pourquoi | Ngano man? = Pourquoi ?
+> mot: pila | combien (de choses) | Pila kabuok imong mga igsuon? = Combien as-tu de frères et sœurs ?
+> mot: tagpila | combien (le prix) | Tagpila ni? = Combien ça coûte ?
+> mot: unsaon | comment | Unsaon pagsulti og salamat sa Bisaya? = Comment dit-on « merci » en bisaya ?
+> mot: giunsa | comment (c'est fait) | Giunsa nimo na? = Comment as-tu fait ça ?
+> astuce: **Unsa ang…** devient souvent **Unsay…**, et **Kinsa ang…** devient **Kinsay…** | Unsay imong pangalan?
+> astuce: **man** rend la question plus douce, plus naturelle : | Unsa man ang trabaho nimo?
+
+--- tableau | Le grand tableau | ako, nako, akong, si, ang, kini…
+> intro: Tout ton cours sur une page : les personnes, les petits mots, et « ce, ça, ici ».
+> titre: LES PERSONNES
+> colonnes: QUI | DE… | À… | MON…
+> ligne: je, moi | ako · ko | nako | kanako · sa ako | akong
+> ligne: tu, toi | ikaw · ka | nimo | kanimo · sa imo | imong
+> ligne: il, elle | siya | niya | kaniya · sa iya | iyang
+> ligne: nous (avec toi) | kita · ta | nato | kanato · sa ato | atong
+> ligne: nous (sans toi) | kami · mi | namo | kanamo · sa amo | among
+> ligne: vous | kamo · mo | ninyo | kaninyo · sa inyo | inyong
+> ligne: ils, elles | sila | nila | kanila · sa ila | ilang
+> note: **nako** se met après le mot, **akong** avant : libro nako = akong libro = mon livre. **kanako** veut dire « à moi, pour moi ».
+> titre: LES PETITS MOTS
+> colonnes: QUI | DE… | À…
+> ligne: devant un prénom | si · sila si | ni · nila ni | kang · kang … ug kang
+> ligne: devant un nom | ang · ang mga | sa · sa mga | sa · sa mga
+> note: La 2e ligne de chaque case, c'est pour plusieurs. Et **ug**, c'est « un, du » : Nikaon siya ug pan. = Il a mangé du pain.
+> titre: CE, ÇA, ICI
+> colonnes: C'EST… | APRÈS UN VERBE | ICI, LÀ
+> ligne: près de moi | kini · ni | niini | dinhi · diri
+> ligne: près de toi | kana · na | niana | dinha · dira
+> ligne: là-bas | kadto · to | niadto | didto
+> exemple: Tubig kini. = C'est de l'eau.
+> exemple: Inom nianang tubig. = Bois cette eau-là.
+> exemple: Paglukso dinhi. = Saute ici.

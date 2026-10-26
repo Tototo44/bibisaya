@@ -16,6 +16,28 @@ class Example(val ceb: String, val fr: String)
 
 class Lesson(val intro: String, val rules: List<Rule>, val examples: List<Example>)
 
+/** Une ligne de la fiche « Les questions » : « unsa | quoi | Unsa ni? = Qu'est-ce que c'est ? ». */
+class SheetWord(val word: String, val meaning: String, val example: Example?)
+
+/** Une astuce de fiche, avec son exemple en cebuano. */
+class SheetTip(val text: String, val example: String?)
+
+/** Un tableau de fiche. Une case peut avoir deux formes : « ako · ko ». */
+class SheetTable(val title: String, val columns: List<String>, val rows: List<SheetRow>, val note: String?, val examples: List<Example>)
+
+class SheetRow(val label: String, val cells: List<String>)
+
+/** Une fiche tirée des cours de Thomas : des mots, des tableaux et des astuces. */
+class Sheet(
+    val key: String,
+    val title: String,
+    val subtitle: String?,
+    val intro: String?,
+    val words: List<SheetWord>,
+    val tables: List<SheetTable>,
+    val tips: List<SheetTip>,
+)
+
 /** Un mot ou une phrase à apprendre. */
 class Item(
     val id: String,
@@ -63,9 +85,23 @@ class Stop(
 }
 
 /** Tout le contenu de l'appli (lu depuis assets/contenu.txt). */
-class Content(private val stopsByLine: Map<Line, List<Stop>>, private val glosses: Map<String, String>) {
+class Content(
+    private val stopsByLine: Map<Line, List<Stop>>,
+    private val glosses: Map<String, String>,
+    val sheets: List<Sheet> = emptyList(),
+) {
     val items: List<Item> = Line.values().flatMap { line -> stops(line).flatMap { it.items } }
     val byId: Map<String, Item> = items.associateBy { it.id }
+
+    /** Les noms propres (Thomas, Cebu, Bisaya…) : ils gardent leur majuscule même en début de phrase. */
+    val properNouns: Set<String> = buildSet {
+        for (item in items) {
+            val sentences = listOf(item.ceb) + item.alts + (item.gapOptions ?: emptyList()).map { (item.gapBefore ?: "") + it + (item.gapAfter ?: "") }
+            for (sentence in sentences) {
+                tokenize(sentence).drop(1).filter { it.first().isUpperCase() }.forEach { add(Answers.normalize(it)) }
+            }
+        }
+    }
 
     private val wordGloss: Map<String, String> = buildMap {
         for (item in items) {
@@ -100,6 +136,16 @@ class Content(private val stopsByLine: Map<Line, List<Stop>>, private val glosse
         return glosses[key] ?: wordGloss[key]
     }
 
+    /** Un mot que l'appli connaît (dans une phrase, une glose ou le vocabulaire). */
+    fun isKnownWord(token: String): Boolean = gloss(token) != null || itemsWithForm(Answers.normalize(token)).isNotEmpty()
+
+    fun sheet(key: String): Sheet? = sheets.firstOrNull { it.key == key }
+
+    /** Toutes les leçons (une par arrêt des phrases compliquées). */
+    val lessons: List<Stop> get() = Line.values().flatMap { stops(it) }.filter { it.lesson != null }
+
+    fun stopByKey(key: String): Stop? = Line.values().flatMap { stops(it) }.firstOrNull { it.key == key }
+
     companion object {
         fun parse(text: String): Content {
             val stops = mutableMapOf<Line, MutableList<Stop>>()
@@ -110,8 +156,14 @@ class Content(private val stopsByLine: Map<Line, List<Stop>>, private val glosse
             var intro: String? = null
             var rules = mutableListOf<Rule>()
             var examples = mutableListOf<Example>()
+            val sheets = mutableListOf<Sheet>()
+            val sheet = SheetBuilder()
 
             fun closeStop() {
+                if (section == "FICHES") {
+                    sheet.build()?.let { sheets.add(it) }
+                    return
+                }
                 val h = stopHeader ?: return
                 val line = Line.valueOf(section!!)
                 val lesson = intro?.let { Lesson(it, rules.toList(), examples.toList()) }
@@ -131,6 +183,16 @@ class Content(private val stopsByLine: Map<Line, List<Stop>>, private val glosse
                     l.startsWith("=== ") -> {
                         closeStop()
                         section = l.removePrefix("=== ").trim()
+                    }
+                    l.startsWith("--- ") && section == "FICHES" -> {
+                        closeStop()
+                        val parts = l.removePrefix("--- ").split("|").map { it.trim() }
+                        sheet.start(parts[0], parts.getOrElse(1) { fail("titre de fiche") }, parts.getOrNull(2))
+                    }
+                    l.startsWith(">") && section == "FICHES" -> {
+                        val body = l.removePrefix(">").trim()
+                        if (!sheet.open) fail("ligne hors d'une fiche")
+                        sheet.add(body.substringBefore(":").trim(), body.substringAfter(":").trim())?.let { fail(it) }
                     }
                     l.startsWith("--- ") -> {
                         closeStop()
@@ -201,7 +263,86 @@ class Content(private val stopsByLine: Map<Line, List<Stop>>, private val glosse
                 }
             }
             closeStop()
-            return Content(stops, glosses)
+            return Content(stops, glosses, sheets)
+        }
+
+        /** Lit une fiche ligne par ligne. */
+        private class SheetBuilder {
+            private var key: String? = null
+            private var title = ""
+            private var subtitle: String? = null
+            private var intro: String? = null
+            private val words = mutableListOf<SheetWord>()
+            private val tables = mutableListOf<SheetTable>()
+            private val tips = mutableListOf<SheetTip>()
+            private var table: TableBuilder? = null
+
+            val open get() = key != null
+
+            fun start(key: String, title: String, subtitle: String?) {
+                this.key = key
+                this.title = title
+                this.subtitle = subtitle
+            }
+
+            /** Rend un message d'erreur, ou null si la ligne est bonne. */
+            fun add(k: String, value: String): String? {
+                val p = value.split("|").map { it.trim() }
+                when (k) {
+                    "intro" -> intro = value
+                    "mot" -> {
+                        if (p.size !in 2..3) return "mot en 2 ou 3 parties"
+                        val ex = p.getOrNull(2)?.let { e ->
+                            if (" = " !in e) return "exemple sans « = »"
+                            Example(e.substringBefore(" = ").trim(), e.substringAfter(" = ").trim())
+                        }
+                        words.add(SheetWord(p[0], p[1], ex))
+                    }
+                    "astuce" -> tips.add(SheetTip(p[0], p.getOrNull(1)))
+                    "titre" -> {
+                        closeTable()
+                        table = TableBuilder(value)
+                    }
+                    "colonnes" -> (table ?: return "colonnes sans titre").columns = p
+                    "ligne" -> {
+                        val t = table ?: return "ligne sans titre"
+                        if (p.size != t.columns.size + 1) return "ligne avec ${p.size - 1} cases pour ${t.columns.size} colonnes"
+                        t.rows.add(SheetRow(p[0], p.drop(1)))
+                    }
+                    "note" -> (table ?: return "note sans titre").note = value
+                    "exemple" -> {
+                        if (" = " !in value) return "exemple sans « = »"
+                        (table ?: return "exemple sans titre").examples.add(Example(value.substringBefore(" = ").trim(), value.substringAfter(" = ").trim()))
+                    }
+                    else -> return "clé de fiche inconnue"
+                }
+                return null
+            }
+
+            private fun closeTable() {
+                table?.let { tables.add(SheetTable(it.title, it.columns, it.rows.toList(), it.note, it.examples.toList())) }
+                table = null
+            }
+
+            fun build(): Sheet? {
+                val k = key ?: return null
+                closeTable()
+                val s = Sheet(k, title, subtitle, intro, words.toList(), tables.toList(), tips.toList())
+                key = null
+                subtitle = null
+                intro = null
+                words.clear()
+                tables.clear()
+                tips.clear()
+                return s
+            }
+        }
+
+        private class TableBuilder(val title: String) {
+            var columns: List<String> = emptyList()
+            val rows = mutableListOf<SheetRow>()
+            var note: String? = null
+            val examples = mutableListOf<Example>()
         }
 
         private const val PUNCT = ".,!?;:«»\"()…"

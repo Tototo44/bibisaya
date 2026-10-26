@@ -111,6 +111,242 @@ class EngineTest {
         assertFalse(Answers.checkOrder(item.tokens.dropLast(1), item))
     }
 
+    @Test
+    fun sentencesAreCorrectedWordByWord() {
+        val item = content.items(Line.SIMPLE).first { it.ceb == "Nagtrabaho ko uban sa mga bata." }
+        fun check(s: String) = Answers.checkSentence(s, item, content)
+        assertEquals(Answers.Verdict.RIGHT, check("nagtrabaho ko uban sa mga bata").verdict)
+        assertEquals("forme longue acceptée", Answers.Verdict.RIGHT, check("Nagtrabaho ako uban sa mga bata.").verdict)
+        assertEquals(Answers.Verdict.TYPO, check("Nagtrabho ko uban sa mga bata.").verdict)
+
+        val missing = check("Nagtrabaho ko uban sa bata.")
+        assertEquals(Answers.Verdict.WRONG, missing.verdict)
+        assertEquals(listOf("mga"), missing.missing.map { it.word })
+        assertTrue(missing.wrong.isEmpty())
+
+        // Un autre vrai mot n'est pas une faute de frappe.
+        val other = check("Magtrabaho ko uban sa mga bata.")
+        assertEquals(Answers.Verdict.WRONG, other.verdict)
+        assertEquals(listOf("Nagtrabaho"), other.wrong.map { it.word })
+        assertEquals("ka n'est pas ko", Answers.Verdict.WRONG, check("Nagtrabaho ka uban sa mga bata.").verdict)
+
+        val extra = check("Nagtrabaho ko uban sa mga bata karon.")
+        assertEquals(Answers.Verdict.WRONG, extra.verdict)
+        assertEquals(listOf("karon"), extra.extra)
+        assertEquals(Answers.Verdict.WRONG, check("").verdict)
+
+        val og = content.items(Line.SIMPLE).first { it.ceb == "Nagtuon ko og Bisaya." }
+        assertEquals(Answers.Verdict.RIGHT, Answers.checkSentence("nagtuon ko ug bisaya", og, content).verdict)
+        val kita = content.items(Line.SIMPLE).first { it.ceb == "Kita-kita ta ugma." }
+        assertEquals("tiret ou espace", Answers.Verdict.RIGHT, Answers.checkSentence("kita kita ta ugma", kita, content).verdict)
+        val alt = content.items(Line.SIMPLE).first { it.ceb == "Unsa ang imong pangalan?" }
+        assertEquals("autre réponse acceptée", Answers.Verdict.RIGHT, Answers.checkSentence("Unsay imong pangalan", alt, content).verdict)
+    }
+
+    @Test
+    fun frenchAnswers() {
+        val friend = Item("t:higala", Line.VOCAB, 1, "higala", "l'ami, l'amie", null, emptyList(), null, null, false, null, null, null)
+        assertEquals(Answers.Verdict.RIGHT, Answers.checkFrench("ami", friend))
+        assertEquals(Answers.Verdict.RIGHT, Answers.checkFrench("L'amie", friend))
+        assertEquals(Answers.Verdict.TYPO, Answers.checkFrench("l'amis", friend))
+        assertEquals(Answers.Verdict.WRONG, Answers.checkFrench("le chien", friend))
+        val stop = Item("t:ayaw", Line.VOCAB, 1, "ayaw", "ne… pas ! (pour interdire)", null, emptyList(), null, null, false, null, null, null)
+        assertEquals(Answers.Verdict.RIGHT, Answers.checkFrench("ne pas", stop))
+        val where = content.items(Line.SIMPLE).first { it.ceb == "Asa ka nagpuyo?" }
+        assertEquals(Answers.Verdict.RIGHT, Answers.checkFrench("où habites tu", where))
+        assertEquals("pas mot pour mot : à juger soi-même", Answers.Verdict.WRONG, Answers.checkFrench("Tu habites où ?", where))
+    }
+
+    // ---------- Des questions plus dures ----------
+
+    @Test
+    fun oneWordChangesInTheChoices() {
+        val hungry = content.items(Line.SIMPLE).first { it.ceb == "Gigutom ko." }
+        val options = Planner.exercise(content, Kind.CHOOSE_CEB, hungry, true, Random(1)).options
+        assertEquals(4, options.size)
+        assertTrue("$options", options.all { it.startsWith("Gigutom ") })
+        assertTrue("jamais ako/ko : $options", options.none { Answers.same(it, "Gigutom ako.") })
+        val wrong = options.first { it != hungry.ceb }
+        val why = Variants.explain(content, wrong, hungry.ceb)!!
+        assertTrue(why, why.startsWith("Un seul mot change : **") && "c'est « je »" in why)
+
+        // Phrase à trou : les pièges sont les autres choix du trou.
+        val tall = content.items(Line.COMPLEX).first { it.ceb == "Taas ako." }
+        val gapOptions = Planner.exercise(content, Kind.CHOOSE_CEB, tall, true, Random(2)).options
+        assertEquals(setOf("Taas ako.", "Taas ikaw.", "Taas siya.", "Taas sila."), gapOptions.toSet())
+
+        // Un verbe : mo- devient ni- (seulement si c'est un vrai mot).
+        val buy = content.items(Line.SIMPLE).first { it.ceb == "Mopalit ko ani." }
+        val variants = Variants.all(content, buy).map { it.text }
+        assertTrue("$variants", "Nipalit ko ani." in variants)
+        val nice = content.items(Line.SIMPLE).first { it.ceb.startsWith("Nindot kaayo") }
+        assertTrue(Variants.all(content, nice).none { it.text.startsWith("Mondot") })
+    }
+
+    @Test
+    fun theAnswerCannotBeGuessedFromItsShape() {
+        // Avant : une fois sur 7, la bonne phrase était la seule question, ou la seule avec un prénom.
+        var asked = 0
+        var giveaway = 0
+        val random = Random(9)
+        fun shape(t: String) = (t.trimEnd().lastOrNull { it in "?!." } ?: '.') to Content.tokenize(t).drop(1).any { it.first().isUpperCase() }
+        repeat(3) {
+            for (item in content.items.filter { it.line.isPhrases }) for (kind in listOf(Kind.CHOOSE_CEB, Kind.CHOOSE_FR)) {
+                val ex = Planner.exercise(content, kind, item, true, random)
+                checkExercise(ex)
+                asked++
+                val mine = shape(ex.answer)
+                if (ex.options.count { shape(it) == mine } == 1) giveaway++
+            }
+        }
+        println("Phrases devinables par leur forme : $giveaway sur $asked")
+        assertTrue("$giveaway sur $asked", giveaway * 100 <= asked * 2)
+    }
+
+    @Test
+    fun orderTilesAreLowercaseWithLookAlikeTraps() {
+        val work = content.items(Line.COMPLEX).first { it.ceb == "Nagtrabaho ko sa eskwelahan." }
+        val tiles = Planner.exercise(content, Kind.ORDER, work, true, Random(3)).options
+        assertTrue("$tiles", "nagtrabaho" in tiles)
+        assertEquals(6, tiles.size)
+        val traps = tiles.filter { Answers.normalize(it) !in work.tokens.map(Answers::normalize) }
+        val alike = setOf("magtrabaho", "pagtrabaho", "ka", "siya", "ta", "mi", "mo", "sila")
+        assertTrue("pièges : $traps", traps.all { it in alike })
+        // Les noms propres gardent leur majuscule.
+        val thomas = content.items(Line.SIMPLE).first { it.ceb == "Ako si Thomas." }
+        val t2 = Planner.exercise(content, Kind.ORDER, thomas, true, Random(4)).options
+        assertTrue("$t2", "Thomas" in t2 && "ako" in t2)
+        assertTrue(Answers.checkOrder(listOf("ako", "si", "Thomas"), thomas))
+    }
+
+    @Test
+    fun wellKnownItemsAreWrittenMoreOften() {
+        val random = Random(5)
+        val word = content.items(Line.VOCAB).first()
+        val writes = (1..1000).count { Planner.reviewKind(word, 4, random) == Kind.WRITE }
+        assertTrue("$writes", writes in 720..880)
+        val phrase = content.items(Line.SIMPLE).first { it.ceb == "Asa ka nagpuyo?" }
+        assertTrue((1..200).any { Planner.reviewKind(phrase, 4, random) == Kind.WRITE })
+        assertTrue((1..200).none { Planner.reviewKind(phrase, 1, random) == Kind.WRITE })
+        val long = content.items(Line.COMPLEX).first { it.tokens.size > Planner.MAX_WRITE_TOKENS }
+        assertTrue((1..200).none { Planner.reviewKind(long, 5, random) == Kind.WRITE })
+    }
+
+    @Test
+    fun aWrongAnswerCanBeAcceptedAfterAll() {
+        val p = Progress().apply { installDay = 0 }
+        val s = Planner.build(content, p, Slot.MIDI, Line.SIMPLE, 0, Random(8))
+        var ex: Exercise? = null
+        while (ex == null) {
+            val step = s.current!!
+            s.onShown(step)
+            if (step is Exercise && step.kind != Kind.MATCH && step.graded) ex = step else {
+                if (step is Exercise) s.submit(step, true)
+                s.next()
+            }
+        }
+        val before = p.encode()
+        val steps = s.steps.size
+        val answered = s.gradedAnswered
+        val fb = s.submit(ex, false)
+        assertTrue(fb.retry)
+        assertEquals(steps + 1, s.steps.size)
+        s.next()
+        val again = s.acceptLast()!!
+        assertTrue(again.correct)
+        assertEquals("la question ne revient plus", steps, s.steps.size)
+        assertEquals(answered + 1, s.gradedAnswered)
+        assertEquals(s.gradedAnswered, s.correctFirst)
+        assertTrue(s.missed.isEmpty())
+        // Comme si la réponse avait été juste du premier coup.
+        val p2 = Progress.decode(before)
+        p2.answer(ex.item, true, 0)
+        assertEquals(p2.encode(), p.encode())
+    }
+
+    // ---------- Traduire ----------
+
+    @Test
+    fun translateTenWords() {
+        val p = Progress().apply { installDay = 0 }
+        assertEquals(null, Planner.buildTranslation(content, p, words = true, today = 0))
+        val words = content.items(Line.VOCAB).take(30)
+        words.forEach { p.introduce(it, 0) }
+        words.drop(10).forEach { p.answer(it, true, 0) }
+        val s = Planner.buildTranslation(content, p, words = true, today = 1, random = Random(2))!!
+        assertEquals(Mode.TRANSLATE_WORDS, s.mode)
+        val exercises = s.steps.map { it as Exercise }
+        assertEquals(10, exercises.size)
+        assertEquals(listOf(3, 7), exercises.indices.filter { exercises[it].kind == Kind.TRANSLATE_FR })
+        assertTrue(exercises.all { it.kind == Kind.WRITE || it.kind == Kind.TRANSLATE_FR })
+        assertEquals("les plus fragiles d'abord", words.take(10).toSet(), exercises.map { it.item }.toSet())
+        // Pas de deuxième essai ; les ratés sont « à revoir ».
+        val first = exercises.first()
+        s.onShown(first)
+        assertFalse(s.submit(first, false).retry)
+        assertEquals(10, s.steps.size)
+        assertEquals(listOf(first.item), s.missed)
+
+        val again = Planner.buildTranslation(content, p, words = true, today = 1, random = Random(3), avoid = exercises.map { it.item.id }.toSet())!!
+        assertTrue("pas les mêmes 10", again.steps.none { (it as Exercise).item in exercises.map { e -> e.item } })
+    }
+
+    @Test
+    fun translateSentences() {
+        val p = Progress().apply { installDay = 0 }
+        content.items(Line.SIMPLE).take(4).forEach { p.introduce(it, 0) }
+        content.items(Line.COMPLEX).forEach { p.introduce(it, 0) }
+        val s = Planner.buildTranslation(content, p, words = false, today = 0, random = Random(4))!!
+        val exercises = s.steps.map { it as Exercise }
+        assertEquals(10, exercises.size)
+        for (ex in exercises) {
+            assertTrue(ex.item.line.isPhrases)
+            if (ex.kind == Kind.WRITE) assertTrue(ex.item.tokens.size <= Planner.MAX_TRANSLATE_TOKENS)
+        }
+        val few = Progress().apply { installDay = 0 }
+        content.items(Line.SIMPLE).take(3).forEach { few.introduce(it, 0) }
+        assertEquals(3, Planner.buildTranslation(content, few, words = false, today = 0)!!.steps.size)
+    }
+
+    @Test
+    fun practiceALesson() {
+        val p = Progress().apply { installDay = 0 }
+        val stop = content.stops(Line.COMPLEX)[6]
+        stop.items.take(4).forEach { p.introduce(it, 0) }
+        val s = Planner.buildLessonPractice(content, p, stop, 0, Random(6))
+        assertEquals(Mode.LESSON, s.mode)
+        assertEquals(stop, s.stop)
+        assertEquals(10, s.gradedTotal)
+        assertEquals(6, s.steps.count { it is NewStep })
+        checkSteps(s)
+        assertTrue(s.steps.filterIsInstance<Exercise>().all { it.item.stop == stop.number && it.item.line == Line.COMPLEX })
+        playSession(s, Random(7), 1.0)
+        val points = p.points
+        val o = p.finishPractice(content, 0, s.correctFirst)
+        assertEquals(10 * Progress.POINTS_ANSWER, o.points)
+        assertEquals(points + 100, p.points)
+        assertEquals("pas une des 3 séances", 0, p.sessionsDone)
+        assertTrue(p.slotsDone(0).isEmpty())
+        assertEquals(0, p.streak)
+    }
+
+    // ---------- Les fiches ----------
+
+    @Test
+    fun sheetsFromTheCourses() {
+        assertEquals(listOf("questions", "tableau"), content.sheets.map { it.key })
+        val q = content.sheet("questions")!!
+        assertEquals(11, q.words.size)
+        assertEquals(2, q.tips.size)
+        assertEquals(null, q.words.first { it.word == "hain" }.example)
+        val t = content.sheet("tableau")!!
+        assertEquals(listOf(7, 2, 3), t.tables.map { it.rows.size })
+        for (table in t.tables) for (row in table.rows) assertEquals(table.columns.size, row.cells.size)
+        assertEquals(3, t.tables.last().examples.size)
+        assertEquals(11, content.lessons.size)
+        assertEquals("c7", content.stopByKey("c7")!!.key)
+    }
+
     // ---------- Les révisions ----------
 
     @Test
@@ -281,6 +517,8 @@ class EngineTest {
         playSession(s, Random(7), 0.7)
         p.finishSession(content, Slot.MATIN, 20000, s.correctFirst, s.gradedTotal)
         p.lessonsSeen.add("c1")
+        p.lessonsRead.add("c4")
+        p.lessonsRead.add("questions")
         p.completedStops.add("v1")
         val copy = Progress.decode(p.encode())
         assertEquals(p.encode(), copy.encode())
@@ -288,6 +526,7 @@ class EngineTest {
         assertEquals(p.points, copy.points)
         assertEquals(p.slotsDone(20000), copy.slotsDone(20000))
         assertEquals(p.badges.keys.toList(), copy.badges.keys.toList())
+        assertEquals(setOf("c4", "questions"), copy.lessonsRead)
         assertEquals(0, Progress.decode(null).items.size)
         assertEquals(0, Progress.decode("n'importe quoi\ni:x=abc").items.size)
     }
@@ -366,12 +605,14 @@ class EngineTest {
                 assertTrue(ex.answer in ex.options)
             }
             Kind.ORDER -> {
-                val tokens = ex.item.tokens
+                val tokens = ex.item.tokens.map(Answers::normalize)
                 assertTrue(tokens.size >= 2)
                 assertTrue(ex.options.size in tokens.size + 1..tokens.size + 2)
-                val left = ex.options.toMutableList()
+                val left = ex.options.map(Answers::normalize).toMutableList()
                 for (t in tokens) assertTrue("$ex : $t dans ${ex.options}", left.remove(t))
-                assertTrue(left.none { Answers.normalize(it) in tokens.map(Answers::normalize) })
+                assertTrue(left.none { it in tokens })
+                // Pas de majuscule qui trahit le premier mot (sauf un nom propre).
+                assertTrue("${ex.options}", ex.options.none { it.first().isUpperCase() && Answers.normalize(it) !in content.properNouns })
             }
             Kind.MATCH -> {
                 assertTrue(ex.items.size in 3..5)
@@ -380,7 +621,8 @@ class EngineTest {
                 assertEquals(ex.items.indices.toSet(), ex.rightOrder.toSet())
                 assertEquals(1, ex.items.map { it.line }.toSet().size)
             }
-            Kind.WRITE -> assertTrue(ex.item.isWord || ex.item.isShort)
+            Kind.WRITE -> assertTrue(ex.item.isWord || ex.item.tokens.size <= Planner.MAX_TRANSLATE_TOKENS)
+            Kind.TRANSLATE_FR -> assertTrue(ex.options.isEmpty())
         }
     }
 }

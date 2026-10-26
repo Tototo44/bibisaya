@@ -2,10 +2,11 @@ package com.thomas.bibisaya
 
 import android.app.Activity
 import android.content.Intent
-import android.os.Bundle
 import android.graphics.Paint
+import android.os.Bundle
 import android.text.InputType
-import android.util.TypedValue
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -25,6 +26,7 @@ import com.thomas.bibisaya.engine.Item
 import com.thomas.bibisaya.engine.Kind
 import com.thomas.bibisaya.engine.LessonStep
 import com.thomas.bibisaya.engine.Line
+import com.thomas.bibisaya.engine.Mode
 import com.thomas.bibisaya.engine.NewStep
 import com.thomas.bibisaya.engine.Plan
 import com.thomas.bibisaya.engine.Planner
@@ -34,9 +36,13 @@ import com.thomas.bibisaya.engine.Slot
 import com.thomas.bibisaya.engine.SlotState
 import com.thomas.bibisaya.engine.Step
 import com.thomas.bibisaya.engine.Stop
+import com.thomas.bibisaya.engine.Variants
 import kotlin.random.Random
 
-/** Une séance : petite leçon, nouveaux mots, 10 exercices, puis l'écran de fin. */
+/**
+ * Une série de questions : une séance (petite leçon, nouveaux mots, 10 exercices, écran de fin),
+ * une traduction (10 mots ou 10 phrases) ou un entraînement sur une leçon.
+ */
 class SessionActivity : Activity() {
     private lateinit var store: Store
     private lateinit var content: Content
@@ -46,9 +52,12 @@ class SessionActivity : Activity() {
     private lateinit var footer: FrameLayout
     /** Vrai dès qu'une réponse est donnée : évite de répondre deux fois. */
     private var busy = false
-    private var lessonOnly = false
     /** Pour les captures d'écran : répond tout seul à l'exercice affiché. */
     private var demoHook: ((String) -> Unit)? = null
+    /** Pour les captures d'écran : « Ma réponse était juste aussi ». */
+    private var acceptHook: (() -> Unit)? = null
+
+    private val mode: Mode get() = run?.session?.mode ?: Mode.SESSION
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,35 +76,52 @@ class SessionActivity : Activity() {
         setContentView(root)
         edgeToEdge(root, top, footer, lightNavigation = true)
 
-        intent.getStringExtra(EXTRA_LESSON)?.let { key ->
-            val stop = Line.values().flatMap { content.stops(it) }.firstOrNull { it.key == key }
-            if (stop?.lesson != null) {
-                lessonOnly = true
-                lessonHeader()
-                showLesson(stop)
-                return
-            }
-        }
         if (Store.demo && intent.hasExtra(EXTRA_DEMO_STEP)) {
             startDemo(intent.getStringExtra(EXTRA_DEMO_STEP)!!, intent.getStringExtra(EXTRA_DEMO_ANSWER))
             return
         }
 
         val slot = Slot.of(intent.getStringExtra(EXTRA_SLOT) ?: "")
+        val wanted = when {
+            intent.hasExtra(EXTRA_TRANSLATE) -> if (intent.getStringExtra(EXTRA_TRANSLATE) == "PHRASES") Mode.TRANSLATE_PHRASES else Mode.TRANSLATE_WORDS
+            intent.hasExtra(EXTRA_PRACTICE) -> Mode.LESSON
+            else -> Mode.SESSION
+        }
+        val practiced = intent.getStringExtra(EXTRA_PRACTICE)?.let { content.stopByKey(it) }
+        if (wanted == Mode.LESSON && practiced == null) {
+            finish()
+            return
+        }
         val today = Store.today()
         val existing = Data.running
         // Une séance commencée (ou un écran recréé) reprend là où elle en était.
         val resume = existing != null && existing.slot == slot && existing.day == today &&
+            existing.session.mode == wanted && existing.session.stop?.key == practiced?.key &&
             (existing.outcome == null || savedInstanceState != null)
         run = if (resume) existing else {
             val pr = store.progress()
-            if (slot != null && slot in pr.slotsDone(today)) {
-                Toast.makeText(this, "La séance ${slot.adjective} est déjà faite. Bravo !", Toast.LENGTH_SHORT).show()
-                finish()
-                return
+            val session = when (wanted) {
+                Mode.SESSION -> {
+                    if (slot != null && slot in pr.slotsDone(today)) {
+                        Toast.makeText(this, "La séance ${slot.adjective} est déjà faite. Bravo !", Toast.LENGTH_SHORT).show()
+                        finish()
+                        return
+                    }
+                    val line = if (slot == null) null else Plan.lineFor(slot, today, pr.installDay)
+                    Planner.build(content, pr, slot, line, today)
+                }
+                Mode.LESSON -> Planner.buildLessonPractice(content, pr, practiced!!, today)
+                else -> {
+                    val built = Planner.buildTranslation(content, pr, wanted == Mode.TRANSLATE_WORDS, today, avoid = Data.lastTranslation[wanted] ?: emptySet())
+                    if (built == null) {
+                        finish()
+                        return
+                    }
+                    Data.lastTranslation[wanted] = built.steps.filterIsInstance<Exercise>().map { it.item.id }.toSet()
+                    built
+                }
             }
-            val line = if (slot == null) null else Plan.lineFor(slot, today, pr.installDay)
-            Running(slot, slot == null, today, pr, Planner.build(content, pr, slot, line, today)).also { Data.running = it }
+            Running(slot, wanted == Mode.SESSION && slot == null, today, pr, session).also { Data.running = it }
         }
         slot?.let { Notify.cancel(this, it) }
         showCurrent()
@@ -103,7 +129,7 @@ class SessionActivity : Activity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (lessonOnly) finish() else askStop()
+        askStop()
     }
 
     override fun onPause() {
@@ -117,10 +143,18 @@ class SessionActivity : Activity() {
             goHome()
             return
         }
+        val practice = "Tes réponses comptent déjà pour tes révisions, mais les points ne sont gagnés qu'à la fin."
+        val (title, message, keep) = when (r.session.mode) {
+            Mode.SESSION -> Triple(
+                "Arrêter la séance ?",
+                "Les mots déjà vus restent dans ton lexique, mais cette séance ne comptera pas pour aujourd'hui.",
+                "CONTINUER LA SÉANCE",
+            )
+            Mode.LESSON -> Triple("Arrêter l'entraînement ?", practice, "CONTINUER")
+            else -> Triple("Arrêter la traduction ?", practice, "CONTINUER")
+        }
         confirm(
-            "Arrêter la séance ?",
-            "Les mots déjà vus restent dans ton lexique, mais cette séance ne comptera pas pour aujourd'hui.",
-            "CONTINUER LA SÉANCE", "Arrêter quand même",
+            title, message, keep, "Arrêter quand même",
             onNo = {
                 Data.running = null
                 finish()
@@ -128,6 +162,7 @@ class SessionActivity : Activity() {
         ) {}
     }
 
+    /** Retour à l'écran d'avant : l'accueil, ou la leçon pour un entraînement. */
     private fun goHome() {
         Data.running = null
         if (isTaskRoot) startActivity(Intent(this, MainActivity::class.java))
@@ -139,8 +174,9 @@ class SessionActivity : Activity() {
         val r = run ?: return
         Gloss.dismiss()
         demoHook = null
+        acceptHook = null
         if (r.outcome != null || r.session.finished) {
-            showEnd()
+            if (r.session.mode == Mode.SESSION) showEnd() else showPracticeEnd()
             return
         }
         val step = r.session.current!!
@@ -154,6 +190,7 @@ class SessionActivity : Activity() {
             is Exercise -> when (step.kind) {
                 Kind.CHOOSE_CEB, Kind.CHOOSE_FR, Kind.GAP -> showChoice(step)
                 Kind.WRITE -> showWrite(step)
+                Kind.TRANSLATE_FR -> showTranslateFr(step)
                 Kind.ORDER -> showOrder(step)
                 Kind.MATCH -> showMatch(step)
             }
@@ -174,21 +211,16 @@ class SessionActivity : Activity() {
             setBackgroundColor(C.YELLOW)
             pad(18, 16, 18, 14)
         }
-        row.addView(squareButton(R.drawable.ic_close, "Fermer la séance", shadow = false) { askStop() })
+        val close = when (s.mode) {
+            Mode.SESSION -> "Fermer la séance"
+            Mode.LESSON -> "Arrêter l'entraînement"
+            else -> "Arrêter la traduction"
+        }
+        row.addView(squareButton(R.drawable.ic_close, close, shadow = false) { askStop() })
         val bar = Bar(this, C.WHITE, C.RED, dpf(3))
         bar.fraction = if (step is LessonStep) 0.06f + s.gradedAnswered.toFloat() / total else s.counter.toFloat() / total
         row.addView(bar, lp(0, dp(24), 1f))
         row.addView(text("${s.counter}/${s.gradedTotal}", 16f, 800))
-        setHead(row)
-    }
-
-    private fun lessonHeader() {
-        val row = hbox(12).apply {
-            setBackgroundColor(C.YELLOW)
-            pad(18, 16, 18, 14)
-        }
-        row.addView(squareButton(R.drawable.ic_close, "Fermer", shadow = false) { finish() })
-        row.addView(text("Revoir la leçon", 20f, 800), lp(0, WRAP, 1f))
         setHead(row)
     }
 
@@ -246,69 +278,29 @@ class SessionActivity : Activity() {
         return row
     }
 
+    /** Le petit titre rouge d'un exercice ; en mode Traduire, avec « 10 mots » à droite. */
+    private fun exerciseLabel(title: String): View {
+        val s = run!!.session
+        if (!s.mode.isTranslation) return label(title)
+        val row = hbox(10)
+        row.addView(label(title), lp(0, WRAP, 1f))
+        val n = s.gradedTotal
+        val what = if (s.mode == Mode.TRANSLATE_WORDS) Fr.count(n, "mot", "mots") else Fr.count(n, "phrase", "phrases")
+        row.addView(text(what, 13f, 800).apply {
+            pad(10, 3, 10, 3)
+            box(C.WHITE, 999, C.NAVY, 2)
+        })
+        return row
+    }
+
     // ---------- Petite leçon ----------
 
     private fun showLesson(stop: Stop) {
-        val lesson = stop.lesson!!
         page(18) {
             addView(tagRow("PETITE LEÇON", "${stop.line.label} · Arrêt ${stop.number}"), lp())
-            val top = vbox(6)
-            top.addView(text(stop.title, 32f, 800, line = 1.0f))
-            top.addView(text(lesson.intro, 16f, 500, line = 1.35f))
-            addView(top, lp())
-            if (lesson.rules.isNotEmpty()) {
-                val table = vbox().apply {
-                    pad(3, 3, 3, 3)
-                    box(C.WHITE, 18, C.NAVY, 3)
-                }
-                // Les formes à gauche si la plus longue tient dans une colonne, sinon chacune au-dessus de son sens.
-                val formPaint = Paint().apply {
-                    typeface = Fonts.get(800, 22f)
-                    textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 22f, resources.displayMetrics)
-                }
-                val widest = lesson.rules.maxOf { formPaint.measureText(it.form) }.toInt() + dp(4)
-                val rowWidth = resources.displayMetrics.widthPixels - dp(20 + 20 + 6 + 28)
-                val side = widest <= rowWidth * 0.42f
-                val column = maxOf(dp(78), widest)
-                lesson.rules.forEachIndexed { i, rule ->
-                    if (i > 0) table.addView(dashes(C.DASH, 2))
-                    val row = if (side) hbox(14) else vbox(4)
-                    row.pad(14, 12, 14, 12)
-                    val form = text(rule.form, 22f, 800, C.LABEL, line = 1.1f)
-                    val words = vbox(1)
-                    words.addView(text(rule.meaning, 15f, 700, line = 1.25f))
-                    words.addView(text(rule.example, 15f, 500, line = 1.25f))
-                    if (side) {
-                        row.addView(form, LinearLayout.LayoutParams(column, WRAP))
-                        row.addView(words, lp(0, WRAP, 1f))
-                    } else {
-                        row.addView(form, lp())
-                        row.addView(words, lp())
-                    }
-                    table.addView(row, lp())
-                }
-                addView(table, lp())
-            }
-            if (lesson.examples.isNotEmpty()) {
-                val box = vbox(10).apply {
-                    pad(16, 14, 16, 14)
-                    box(C.NAVY, 18)
-                }
-                box.addView(label("EXEMPLES", 12f, C.YELLOW))
-                for (ex in lesson.examples) {
-                    val one = vbox(1)
-                    one.addView(tappableSentence(ex.ceb, 17f, 800, C.WHITE, { content.gloss(it) }, underline = 0x66FFFFFF), lp())
-                    one.addView(text(ex.fr, 15f, 500, C.WHITE, line = 1.25f))
-                    box.addView(one, lp())
-                }
-                box.addView(text("Touche un mot pour voir sa traduction.", 13f, 600, C.YELLOW))
-                addView(box, lp())
-            }
+            addLesson(this, stop, content)
         }
-        actionFooter(
-            if (lessonOnly) navyButton("FERMER", 56, 18f) { finish() }
-            else primaryButton("J'AI COMPRIS →", 60, 20f) { next() }
-        )
+        actionFooter(primaryButton("J'AI COMPRIS →", 60, 20f) { next() })
     }
 
     // ---------- Nouveau mot ----------
@@ -376,6 +368,13 @@ class SessionActivity : Activity() {
     private fun showChoice(ex: Exercise) {
         val item = ex.item
         val views = mutableListOf<Pair<String, OptionView>>()
+        // Des phrases presque pareilles se comparent mieux l'une sous l'autre.
+        val list = (ex.kind != Kind.GAP && !item.isWord) || ex.options.any { it.length > 13 }
+        val size = when {
+            !list -> 22f
+            ex.options.all { it.length <= 22 } -> 20f
+            else -> 18f
+        }
         page {
             val q = vbox(6)
             q.addView(label(if (ex.kind == Kind.GAP) "COMPLÈTE LA PHRASE" else "CHOISIS LA BONNE TRADUCTION"))
@@ -388,30 +387,36 @@ class SessionActivity : Activity() {
                 }
             }
             addView(q, lp())
-            val long = ex.options.any { it.length > 13 }
-            val grid = vbox(14)
-            if (long) {
+            if (list) {
+                val column = vbox(12)
                 for (o in ex.options) {
-                    val v = OptionView(o, long = true)
-                    grid.addView(v, lp())
+                    val v = OptionView(o, list = true, size = size)
+                    column.addView(v, lp())
                     views.add(o to v)
                 }
+                addView(column, lp())
             } else {
+                val grid = vbox(14)
                 for (pair in ex.options.chunked(2)) {
                     val row = hbox(14)
                     for (o in pair) {
-                        val v = OptionView(o, long = false)
+                        val v = OptionView(o, list = false, size = size)
                         row.addView(v, lp(0, dp(86), 1f))
                         views.add(o to v)
                     }
                     grid.addView(row, lp())
                 }
+                addView(grid, lp())
             }
-            addView(grid, lp())
         }
         for ((o, v) in views) v.onTap { answerChoice(ex, o, views) }
         setFooter(null)
-        demoHook = { mode -> answerChoice(ex, if (mode == "right") ex.answer else ex.options.first { it != ex.answer }, views) }
+        demoHook = { answer ->
+            // Pour la capture « faux », de préférence un piège où un seul mot change.
+            val wrong = ex.options.firstOrNull { it != ex.answer && whyWrong(ex, it)?.startsWith("Un seul mot") == true }
+                ?: ex.options.first { it != ex.answer }
+            answerChoice(ex, if (answer == "right") ex.answer else wrong, views)
+        }
     }
 
     private fun answerChoice(ex: Exercise, chosen: String, views: List<Pair<String, OptionView>>) {
@@ -441,11 +446,22 @@ class SessionActivity : Activity() {
         } else {
             picked?.shake()
             Buzz.wrong(this)
-            val lines = mutableListOf<String>()
-            meaningOf(ex, chosen)?.let { lines.add(it) }
+            val lines = mutableListOf<Any>()
+            whyWrong(ex, chosen)?.let { lines.add(it) }
             lines.add(if (ex.kind == Kind.GAP) "La bonne phrase : **${ex.item.ceb}**" else "La bonne réponse est **${ex.answer}**.")
             wrongPanel(ex.item, fb, lines)
         }
+    }
+
+    /** Pourquoi le choix est faux : le seul mot qui change entre les deux phrases, sinon le sens du mauvais choix. */
+    private fun whyWrong(ex: Exercise, chosen: String): String? {
+        val item = ex.item
+        val near = when (ex.kind) {
+            Kind.CHOOSE_CEB -> if (item.isWord) null else Variants.explain(content, chosen, ex.answer)
+            Kind.GAP -> Variants.explain(content, "${item.gapBefore.orEmpty()}$chosen${item.gapAfter.orEmpty()}", item.ceb)
+            else -> null
+        }
+        return near ?: meaningOf(ex, chosen)
     }
 
     /** Le sens de la mauvaise réponse choisie : « balay », c'est la maison. */
@@ -460,16 +476,15 @@ class SessionActivity : Activity() {
     private fun meaning(ceb: String, o: Item): String =
         if (o.isWord) "**$ceb**, c'est ${o.fr}." else "**$ceb** veut dire « ${o.fr} »."
 
-    private inner class OptionView(value: String, long: Boolean) : LinearLayout(this@SessionActivity) {
-        private val size = if (long) 18f else 22f
+    private inner class OptionView(value: String, list: Boolean, private val size: Float) : LinearLayout(this@SessionActivity) {
         private val mark = icon(R.drawable.ic_check, C.GREEN_TEXT).apply { visibility = View.GONE }
         private val words = text(value, size, 700, line = 1.15f).apply { gravity = Gravity.CENTER }
 
         init {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER
-            pad(12, 12, 12, 12)
-            minimumHeight = dp(if (long) 64 else 86)
+            pad(12, 10, 12, 10)
+            minimumHeight = dp(if (list) 60 else 86)
             box(C.WHITE, 18, C.NAVY, 3)
             squishy()
             addView(mark, LayoutParams(dp(20), dp(20)).apply { rightMargin = dp(8) })
@@ -495,46 +510,85 @@ class SessionActivity : Activity() {
         }
     }
 
-    // ---------- Écrire ----------
+    // ---------- Écrire (en cebuano, ou en français en mode Traduire) ----------
 
-    private fun showWrite(ex: Exercise) {
-        val item = ex.item
-        val stop = content.stopOf(item)
-        val input = EditText(this).apply {
-            // Le type de clavier d'abord : il remettrait sinon une police à chasse fixe.
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            typeface = Fonts.get(700, 26f)
-            textSize = 26f
-            setTextColor(C.NAVY)
-            setHintTextColor(C.DASH)
-            hint = if (item.isWord) "le mot en cebuano" else "la phrase en cebuano"
-            isSingleLine = true
-            imeOptions = EditorInfo.IME_ACTION_DONE
-            pad(16, 0, 16, 0)
-            box(C.WHITE, 14, C.NAVY, 3)
+    /**
+     * Le champ « Ta réponse ». En cebuano, le clavier ne propose ni ne corrige rien (il prendrait les mots
+     * pour du français). Une phrase passe à la ligne, mais la touche Entrée vérifie la réponse.
+     */
+    private fun answerField(hint: String, long: Boolean, cebuano: Boolean): EditText = EditText(this).apply {
+        // Le type de clavier d'abord : il remettrait sinon une police à chasse fixe.
+        inputType = if (cebuano) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        val size = when {
+            long -> 21f
+            cebuano -> 26f
+            else -> 23f
         }
-        page {
-            addView(label("ÉCRIS EN CEBUANO"))
-            val card = vbox(6).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                pad(20, 28, 20, 28)
-                box(C.WHITE, 22, C.NAVY, 3, C.NAVY, 6)
-                stateListAnimator = null
-            }
-            val size = when {
-                item.fr.length <= 10 -> 44f
-                item.fr.length <= 18 -> 34f
-                else -> 26f
-            }
-            card.addView(text(item.fr, size, 800, line = 1.05f).apply { gravity = Gravity.CENTER }, lp())
-            card.addView(text("Arrêt ${stop.number} · ${stop.title}", 14f, 600).apply { gravity = Gravity.CENTER }, lp())
-            addView(card, lp())
+        typeface = Fonts.get(700, size)
+        textSize = size
+        setTextColor(C.NAVY)
+        setHintTextColor(C.DASH)
+        this.hint = hint
+        imeOptions = EditorInfo.IME_ACTION_DONE
+        if (long) {
+            setHorizontallyScrolling(false)
+            maxLines = 4
+            minHeight = dp(62)
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            setLineSpacing(0f, 1.15f)
+            pad(14, 10, 14, 10)
+        } else {
+            isSingleLine = true
+            pad(16, 0, 16, 0)
+        }
+        box(C.WHITE, 14, C.NAVY, 3)
+    }
+
+    /** La carte de ce qu'il faut traduire, avec l'arrêt d'où ça vient. */
+    private fun promptCard(value: String, where: String, word: Boolean): View {
+        val card = vbox(6).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            if (word) pad(20, 28, 20, 28) else pad(18, 22, 18, 22)
+            box(C.WHITE, 22, C.NAVY, 3, C.NAVY, 6)
+            stateListAnimator = null
+        }
+        val size = when {
+            word && value.length <= 10 -> 44f
+            word && value.length <= 18 -> 34f
+            word -> 26f
+            value.length <= 24 -> 30f
+            value.length <= 40 -> 27f
+            else -> 23f
+        }
+        card.addView(text(value, size, 800, line = if (word) 1.05f else 1.15f).apply { gravity = Gravity.CENTER }, lp())
+        card.addView(text(where, 14f, 600).apply { gravity = Gravity.CENTER }, lp())
+        return card
+    }
+
+    /** « Arrêt 4 · La maison » pour un mot, « Phrases simples · Arrêt 2 » pour une phrase. */
+    private fun whereFrom(item: Item): String {
+        val stop = content.stopOf(item)
+        return if (item.isWord) "Arrêt ${stop.number} · ${stop.title}" else "${item.line.label} · Arrêt ${stop.number}"
+    }
+
+    /** L'écran « écris ta réponse » : la carte, le champ, le petit rappel, et VÉRIFIER en bas. */
+    private fun writeScreen(ex: Exercise, title: String, prompt: String, input: EditText, onCheck: () -> Unit) {
+        val item = ex.item
+        page(if (item.isWord) 22 else 18) {
+            addView(exerciseLabel(title), lp())
+            addView(promptCard(prompt, whereFrom(item), item.isWord), lp())
             val answer = vbox(8)
             answer.addView(text("Ta réponse", 15f, 700))
-            answer.addView(input, lp(MATCH, dp(62)))
+            answer.addView(input, if (input.maxLines == 1) lp(MATCH, dp(62)) else lp())
             addView(answer, lp())
+            addView(text(
+                if (ex.kind == Kind.TRANSLATE_FR) "Pas besoin de mot pour mot : si ce n'est pas ma traduction, c'est toi qui juges."
+                else "Les majuscules et les accents ne comptent pas, et une petite faute est permise.",
+                14f, 600, C.GRAY, line = 1.35f,
+            ).apply { gravity = Gravity.CENTER }, lp())
         }
-        val check = primaryButton("VÉRIFIER", 60, 20f) { answerWrite(ex, input) }
+        val check = primaryButton("VÉRIFIER", 60, 20f) { onCheck() }
         fun enable(on: Boolean) {
             check.isEnabled = on
             check.alpha = if (on) 1f else 0.45f
@@ -542,21 +596,61 @@ class SessionActivity : Activity() {
         enable(false)
         input.onChange { enable(it.isNotBlank() && !busy) }
         input.setOnEditorActionListener { _, _, _ ->
-            answerWrite(ex, input)
+            onCheck()
             true
         }
         actionFooter(check)
         input.requestFocus()
         input.postDelayed({ getSystemService(InputMethodManager::class.java)?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT) }, 250)
-        demoHook = { mode ->
-            input.setText(
-                when (mode) {
-                    "right" -> item.ceb
-                    "typo" -> item.ceb.dropLast(1)
-                    else -> "bato"
-                }
-            )
+    }
+
+    private fun showWrite(ex: Exercise) {
+        val item = ex.item
+        val input = answerField(if (item.isWord) "le mot en cebuano" else "la phrase en cebuano", long = !item.isWord, cebuano = true)
+        val title = if (mode.isTranslation) "TRADUIS EN CEBUANO" else "ÉCRIS EN CEBUANO"
+        writeScreen(ex, title, item.fr, input) { answerWrite(ex, input) }
+        demoHook = { answer ->
+            input.setText(demoTyping(item, answer))
             answerWrite(ex, input)
+            if (answer == "accepted") input.postDelayed({ acceptHook?.invoke() }, 1200)
+        }
+    }
+
+    /** Ce que la démo tape : juste, avec une petite faute, avec un mot en moins, ou faux. */
+    private fun demoTyping(item: Item, answer: String): String {
+        if (item.isWord) return when (answer) {
+            "right" -> item.ceb
+            "typo" -> item.ceb.dropLast(1)
+            else -> "bato"
+        }
+        val words = item.ceb.split(" ")
+        val longest = words.indices.maxByOrNull { words[it].length }!!
+        return when (answer) {
+            "right" -> item.ceb
+            "typo" -> words.mapIndexed { i, w -> if (i == longest) w.removeRange(1, 2) else w }.joinToString(" ")
+            "missing", "accepted" -> (words.dropLast(2) + words.last()).joinToString(" ")
+            else -> Variants.all(content, item).firstOrNull()?.text ?: words.drop(1).joinToString(" ")
+        }
+    }
+
+    /** Le champ ne se modifie plus, et le clavier se ferme. */
+    private fun lock(input: EditText) {
+        input.isFocusable = false
+        input.isCursorVisible = false
+        input.keyListener = null
+        getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(input.windowToken, 0)
+    }
+
+    /** Le champ devient vert (juste) ou rouge (faux). */
+    private fun mark(input: EditText, correct: Boolean) {
+        input.box(C.WHITE, 14, if (correct) C.GREEN else C.LABEL, 3)
+        input.setTextColor(if (correct) C.GREEN_TEXT else C.WRONG_TEXT)
+        if (correct) {
+            input.pop()
+            Buzz.right(this)
+        } else {
+            input.shake()
+            Buzz.wrong(this)
         }
     }
 
@@ -567,37 +661,191 @@ class SessionActivity : Activity() {
         demoHook = null
         val r = run!!
         val item = ex.item
-        val verdict = Answers.checkWritten(typed, item, content)
-        val correct = verdict != Answers.Verdict.WRONG
-        val fb = r.session.submit(ex, correct)
+        lock(input)
+        val accept = { accepted(ex, input) }
+        if (item.isWord) {
+            val verdict = Answers.checkWritten(typed, item, content)
+            val fb = r.session.submit(ex, verdict != Answers.Verdict.WRONG)
+            r.session.next()
+            store.save(r.progress)
+            mark(input, verdict != Answers.Verdict.WRONG)
+            when (verdict) {
+                Answers.Verdict.RIGHT -> rightPanel(item, fb)
+                Answers.Verdict.TYPO -> rightPanel(item, fb, title = almost(fb), lines = listOf("Ça s'écrit **${item.ceb}**."))
+                Answers.Verdict.WRONG -> {
+                    val lines = mutableListOf<Any>("La bonne réponse est **${item.ceb}**.")
+                    content.itemsWithForm(Answers.normalize(typed)).firstOrNull()?.let { o -> lines.add(0, meaning(typed.trim(), o)) }
+                    wrongPanel(item, fb, lines, accept = accept)
+                }
+            }
+            return
+        }
+        val check = Answers.checkSentence(typed, item, content)
+        val fb = r.session.submit(ex, check.verdict != Answers.Verdict.WRONG)
         r.session.next()
         store.save(r.progress)
-        input.isFocusable = false
-        input.isCursorVisible = false
-        input.keyListener = null
-        getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(input.windowToken, 0)
-        input.box(C.WHITE, 14, if (correct) C.GREEN else C.LABEL, 3)
-        input.setTextColor(if (correct) C.GREEN_TEXT else C.WRONG_TEXT)
-        if (correct) {
-            input.pop()
-            Buzz.right(this)
-        } else {
-            input.shake()
-            Buzz.wrong(this)
+        mark(input, check.verdict != Answers.Verdict.WRONG)
+        when (check.verdict) {
+            Answers.Verdict.RIGHT -> {
+                // Juste, mais pas tout à fait la phrase apprise (ako au lieu de ko…) : on la montre aussi.
+                val other = !Answers.same(typed, check.expected)
+                rightPanel(item, fb, lines = if (other) listOf("On peut aussi dire : **${check.expected}**") else emptyList())
+            }
+            Answers.Verdict.TYPO -> rightPanel(item, fb, title = almost(fb), lines = listOf("Ça s'écrit : **${check.expected}**"))
+            Answers.Verdict.WRONG -> wrongPanel(item, fb, sentenceLines(check), accept = accept)
         }
-        when (verdict) {
-            Answers.Verdict.RIGHT -> rightPanel(item, fb)
-            Answers.Verdict.TYPO -> rightPanel(
-                item, fb,
-                title = if (fb.change != null) "Presque parfait ! +${Progress.POINTS_ANSWER} points" else "Presque parfait !",
-                lines = listOf("Ça s'écrit **${item.ceb}**."),
-            )
-            Answers.Verdict.WRONG -> {
-                val lines = mutableListOf("La bonne réponse est **${item.ceb}**.")
-                content.itemsWithForm(Answers.normalize(typed)).firstOrNull()?.let { o -> lines.add(0, meaning(typed.trim(), o)) }
-                wrongPanel(item, fb, lines)
+    }
+
+    private fun almost(fb: Feedback) = if (fb.change != null) "Presque parfait ! +${Progress.POINTS_ANSWER} points" else "Presque parfait !"
+
+    /** Ce qui n'allait pas dans la phrase tapée : la bonne phrase, avec les mots qui manquaient surlignés. */
+    private fun sentenceLines(check: Answers.SentenceCheck): List<Any> {
+        val missing = check.missing
+        val wrong = check.wrong
+        val extra = check.extra
+        val oneMissing = wrong.isEmpty() && extra.isEmpty() && missing.size == 1
+        val oneWrong = missing.isEmpty() && extra.isEmpty() && wrong.size == 1
+        val oneExtra = missing.isEmpty() && wrong.isEmpty() && extra.size == 1
+        val intro = when {
+            oneMissing -> "Il manquait un mot :"
+            wrong.isEmpty() && extra.isEmpty() && missing.size > 1 -> "Il manquait des mots :"
+            oneWrong -> "Un mot n'est pas le bon :"
+            oneExtra -> "Il y avait un mot en trop :"
+            else -> "La bonne phrase :"
+        }
+        // Presque tout à revoir : la phrase sans surligner, plus lisible.
+        val marked = missing.size + wrong.size
+        val highlight = marked <= maxOf(2, check.words.size / 2)
+        val out = mutableListOf<Any>(intro, sentence(check, highlight))
+        val why = when {
+            oneMissing -> missing.single().let { w ->
+                val word = Planner.tileText(content, Content.cleanToken(w.word))
+                Variants.meaning(content, word)?.let { "${Variants.describe(word, it)}." }
+            }
+            oneWrong -> wrong.single().let { w ->
+                val given = (w.given ?: "").lowercase()
+                val right = Planner.tileText(content, Content.cleanToken(w.word))
+                val mg = Variants.meaning(content, given)
+                val mr = Variants.meaning(content, right)
+                when {
+                    mr != null && mg != null -> "Tu as écrit ${Variants.describe(given, mg)}. Ici, il faut ${Variants.describe(right, mr)}."
+                    mr != null -> "Ici, il faut ${Variants.describe(right, mr)}."
+                    else -> null
+                }
+            }
+            oneExtra -> "Le mot **${extra.single()}** est en trop."
+            else -> null
+        }
+        why?.let { out.add(it) }
+        return out
+    }
+
+    /** La bonne phrase, en gras, avec les mots manquants ou faux sur fond jaune. */
+    private fun sentence(check: Answers.SentenceCheck, highlight: Boolean): TextView {
+        val sb = SpannableStringBuilder()
+        check.words.forEachIndexed { i, w ->
+            if (i > 0) sb.append(' ')
+            val start = sb.length
+            sb.append(w.word)
+            if (highlight && (w.mark == Answers.Mark.MISSING || w.mark == Answers.Mark.WRONG)) {
+                val core = Content.cleanToken(w.word)
+                val at = w.word.indexOf(core)
+                if (core.isNotEmpty() && at >= 0) {
+                    sb.setSpan(Highlight(C.YELLOW, C.NAVY, dpf(6), dpf(5), dpf(1)), start + at, start + at + core.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
             }
         }
+        return text(sb, 19f, 800, C.WRONG_DEEP, line = 1.4f)
+    }
+
+    /** « Ma réponse était juste aussi » : la réponse comptée fausse devient juste. */
+    private fun accepted(ex: Exercise, input: EditText) {
+        val r = run ?: return
+        val fb = r.session.acceptLast() ?: return
+        store.save(r.progress)
+        mark(input, true)
+        val title = if (fb.change != null) "D'accord, c'est juste ! +${Progress.POINTS_ANSWER} points" else "D'accord, c'est juste !"
+        rightPanel(ex.item, fb, title = title, lines = listOf("Ta réponse compte comme juste."))
+    }
+
+    // ---------- Traduire en français ----------
+
+    private fun showTranslateFr(ex: Exercise) {
+        val item = ex.item
+        val input = answerField(if (item.isWord) "en français" else "la phrase en français", long = !item.isWord, cebuano = false)
+        writeScreen(ex, "TRADUIS EN FRANÇAIS", item.ceb, input) { answerFr(ex, input) }
+        demoHook = { answer ->
+            input.setText(
+                when (answer) {
+                    "right" -> item.fr
+                    else -> if (item.ceb == "Asa ka nagpuyo?") "Tu habites où ?" else item.fr.split(" ").reversed().joinToString(" ")
+                }
+            )
+            answerFr(ex, input)
+        }
+    }
+
+    private fun answerFr(ex: Exercise, input: EditText) {
+        val typed = input.text.toString()
+        if (busy || typed.isBlank()) return
+        busy = true
+        demoHook = null
+        lock(input)
+        val verdict = Answers.checkFrench(typed, ex.item)
+        if (verdict == Answers.Verdict.WRONG) {
+            // Pas mot pour mot : c'est Thomas qui dit si sa phrase veut dire la même chose.
+            judgePanel(ex, input)
+            return
+        }
+        val r = run!!
+        val fb = r.session.submit(ex, true)
+        r.session.next()
+        store.save(r.progress)
+        mark(input, true)
+        rightPanel(ex.item, fb, lines = if (verdict == Answers.Verdict.TYPO) listOf("Ma traduction : « ${ex.item.fr} »") else emptyList())
+    }
+
+    private fun judgePanel(ex: Exercise, input: EditText) {
+        val item = ex.item
+        val col = vbox(8).apply { pad(20, 16, 20, 18) }
+        col.addView(text("Ce n'est pas mot pour mot ma traduction :", 16f, 500, line = 1.3f))
+        col.addView(text("« ${item.fr} »", if (item.fr.length > 26) 21f else 25f, 800, line = 1.15f))
+        col.addView(text("Ta réponse veut dire la même chose ?", 17f, 700, line = 1.3f))
+        val row = hbox(12).apply { gravity = Gravity.TOP }
+        val buttons = mutableListOf<View>()
+        fun judged(same: Boolean) {
+            buttons.forEach { it.isClickable = false }
+            val r = run!!
+            val fb = r.session.submit(ex, same)
+            r.session.next()
+            store.save(r.progress)
+            mark(input, same)
+            if (same) rightPanel(item, fb)
+            else wrongPanel(item, fb, listOf("La bonne traduction est « ${item.fr} »."))
+        }
+        val yes = text("OUI, C'EST PAREIL", 17f, 800, C.WHITE).apply {
+            gravity = Gravity.CENTER
+            minHeight = dp(60)
+            pad(8, 0, 8, 0)
+            box(C.GREEN, 16, C.NAVY, 3, C.NAVY, 4)
+            onTap { judged(true) }
+        }
+        val no = text("NON", 17f, 800).apply {
+            gravity = Gravity.CENTER
+            minHeight = dp(56)
+            box(C.WHITE, 16, C.NAVY, 3)
+            squishy()
+            onTap { judged(false) }
+        }
+        buttons += listOf(yes, no)
+        row.addView(yes, lp(0, WRAP, 2f))
+        row.addView(no, lp(0, WRAP, 1f))
+        col.addView(row, lp().apply { topMargin = dp(6) })
+        val wrap = vbox()
+        wrap.addView(View(this).apply { setBackgroundColor(C.NAVY) }, lp(MATCH, dp(3)))
+        wrap.addView(col, lp())
+        setFooter(wrap, C.PALE_YELLOW)
+        wrap.slideUp()
     }
 
     // ---------- Remettre dans l'ordre ----------
@@ -616,8 +864,10 @@ class SessionActivity : Activity() {
 
         fun refresh() {
             answerFlow.removeAllViews()
-            for (i in placed) {
-                val t = text(tiles[i], 21f, 700, C.WHITE).apply {
+            placed.forEachIndexed { k, i ->
+                // Les étiquettes sont en minuscules : le premier mot placé prend la majuscule.
+                val word = if (k == 0) tiles[i].replaceFirstChar { it.uppercase() } else tiles[i]
+                val t = text(word, 21f, 700, C.WHITE).apply {
                     pad(16, 10, 16, 10)
                     box(C.NAVY, 12)
                     squishy()
@@ -664,13 +914,13 @@ class SessionActivity : Activity() {
         }
         actionFooter(check)
         refresh()
-        demoHook = { mode ->
+        demoHook = { answer ->
             val used = mutableSetOf<Int>()
-            val order = item.tokens.mapNotNull { tok -> tiles.indices.firstOrNull { tiles[it] == tok && it !in used }?.also { used.add(it) } }
+            val order = item.tokens.mapNotNull { tok -> tiles.indices.firstOrNull { Answers.same(tiles[it], tok) && it !in used }?.also { used.add(it) } }
             placed.clear()
-            placed.addAll(if (mode == "right") order else order.take(2))
+            placed.addAll(if (answer == "right") order else order.take(2))
             refresh()
-            if (mode == "right") answerOrder(ex, placed.map { tiles[it] }, answerFlow)
+            if (answer == "right") answerOrder(ex, placed.map { tiles[it] }, answerFlow)
         }
     }
 
@@ -711,7 +961,11 @@ class SessionActivity : Activity() {
         } else {
             answerFlow.shake()
             Buzz.wrong(this)
-            wrongPanel(item, fb, listOf("La bonne phrase : **${item.ceb}**"))
+            val lines = mutableListOf<Any>()
+            // Le bon ordre, mais un mot-piège (magtrabaho pour nagtrabaho) : on explique la différence.
+            Variants.explain(content, chosen.joinToString(" "), item.ceb)?.let { lines.add(it) }
+            lines.add("La bonne phrase : **${item.ceb}**")
+            wrongPanel(item, fb, lines)
         }
     }
 
@@ -899,7 +1153,7 @@ class SessionActivity : Activity() {
 
     private fun praise(): String = listOf("Maayo kaayo !", "Sakto !", "Nindot !")[(run?.session?.correctFirst ?: 0) % 3]
 
-    private fun rightPanel(item: Item, fb: Feedback, title: String? = null, lines: List<String> = emptyList(), due: Boolean = true) {
+    private fun rightPanel(item: Item, fb: Feedback, title: String? = null, lines: List<Any> = emptyList(), due: Boolean = true) {
         val graded = fb.change != null
         val all = lines.toMutableList()
         if (due) fb.change?.let { all.add(Plan.dueText(it, item.isWord)) }
@@ -907,7 +1161,7 @@ class SessionActivity : Activity() {
         panel(true, title ?: if (graded) "${praise()} +${Progress.POINTS_ANSWER} points" else "Sakto !", all)
     }
 
-    private fun wrongPanel(item: Item, fb: Feedback, lines: List<String>, several: Boolean = false) {
+    private fun wrongPanel(item: Item, fb: Feedback, lines: List<Any>, several: Boolean = false, accept: (() -> Unit)? = null) {
         val what = when {
             several -> "ces mots"
             item.isWord -> "ce mot"
@@ -918,13 +1172,21 @@ class SessionActivity : Activity() {
             item.isWord -> "le"
             else -> "la"
         }
-        val note = if (fb.retry) "Pas grave : $what ${if (several) "reviendront" else "reviendra"} un peu plus tard dans la séance."
-        else "Pas grave : tu $pronoun reverras à la prochaine séance."
-        panel(false, "Pas tout à fait…", lines + note)
+        val back = if (several) "reviendront" else "reviendra"
+        // En mode Traduire, l'écran de fin dit ce qui est à revoir.
+        val note = when {
+            mode.isTranslation -> null
+            fb.retry && mode == Mode.LESSON -> "Pas grave : $what $back un peu plus tard."
+            fb.retry -> "Pas grave : $what $back un peu plus tard dans la séance."
+            mode == Mode.LESSON -> "Pas grave : tu $pronoun reverras dans tes séances."
+            else -> "Pas grave : tu $pronoun reverras à la prochaine séance."
+        }
+        panel(false, "Pas tout à fait…", if (note == null) lines else lines + note, accept)
     }
 
-    private fun panel(right: Boolean, title: String, lines: List<String>) {
-        val col = vbox(if (right) 8 else 10).apply { pad(20, 16, 20, 18) }
+    /** [lines] : du texte (les ** en gras) ou une vue, comme la phrase corrigée. */
+    private fun panel(right: Boolean, title: String, lines: List<Any>, accept: (() -> Unit)? = null) {
+        val col = vbox(if (right) 8 else 10).apply { pad(20, 16, 20, if (accept != null) 6 else 18) }
         val titleColor = if (right) C.GREEN_TEXT else C.WRONG_TEXT
         if (right) {
             val row = hbox(10)
@@ -935,10 +1197,21 @@ class SessionActivity : Activity() {
             col.addView(text(title, 22f, 800, titleColor))
         }
         lines.forEachIndexed { i, l ->
-            col.addView(rich(l, if (i == 0 && !right) 16f else 15f, 500, if (right) C.GREEN_DEEP else C.WRONG_DEEP))
+            if (l is View) col.addView(l, lp())
+            else col.addView(rich(l.toString(), if (i == 0 && !right) 16f else 15f, 500, if (right) C.GREEN_DEEP else C.WRONG_DEEP))
         }
         val next = if (right) primaryButton("CONTINUER", 58, 19f) { showCurrent() } else navyButton("CONTINUER", 56, 18f) { showCurrent() }
         col.addView(next, lp().apply { topMargin = dp(8) })
+        if (accept != null) {
+            val link = text("Ma réponse était juste aussi", 15f, 700, C.WRONG_DEEP).apply {
+                gravity = Gravity.CENTER
+                minHeight = dp(44)
+                paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
+                onTap { accept() }
+            }
+            col.addView(link, lp())
+            acceptHook = accept
+        }
         val wrap = vbox()
         wrap.addView(View(this).apply { setBackgroundColor(if (right) C.GREEN else C.LABEL) }, lp(MATCH, dp(3)))
         wrap.addView(col, lp())
@@ -958,24 +1231,7 @@ class SessionActivity : Activity() {
             Buzz.win(this)
         }
         Gloss.dismiss()
-        val ratio = if (s.gradedTotal == 0) 1f else s.correctFirst.toFloat() / s.gradedTotal
-        val hello = when {
-            ratio >= 0.8f -> "Maayo kaayo, Thomas !"
-            ratio >= 0.5f -> "Maayo, Thomas !"
-            else -> "Padayon, Thomas ! Continue comme ça."
-        }
-        val top = vbox(4).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            setBackgroundColor(C.YELLOW)
-            pad(22, 30, 22, 24)
-        }
-        top.addView(text(Plan.sessionTitle(r.slot, s.line).uppercase(), 14f, 700, spacing = 0.08f).apply { gravity = Gravity.CENTER }, lp())
-        top.addView(text("SÉANCE FINIE !", 42f, 800, line = 0.95f).apply { gravity = Gravity.CENTER }, lp())
-        top.addView(text(hello, 19f, 700).apply { gravity = Gravity.CENTER }, lp())
-        val h = vbox()
-        h.addView(top, lp())
-        h.addView(stripes())
-        setHead(h, line = false)
+        endHeader(Plan.sessionTitle(r.slot, s.line).uppercase(), "SÉANCE FINIE !", s)
 
         page(16, top = 20) {
             if (outcome.perfectDay) addView(perfectCard(), lp())
@@ -1000,30 +1256,7 @@ class SessionActivity : Activity() {
             addView(grid, lp())
             for (b in outcome.newBadges) addView(badgeCard(b), lp())
             if (outcome.completedStops.isNotEmpty()) addView(stopsCard(outcome.completedStops), lp())
-            if (n > 0) {
-                val list = vbox(8)
-                val title = when {
-                    s.newItems.all { it.isWord } -> "TES NOUVEAUX MOTS"
-                    s.newItems.none { it.isWord } -> "TES NOUVELLES PHRASES"
-                    else -> "TES NOUVEAUTÉS"
-                }
-                list.addView(text(title, 16f, 800))
-                s.newItems.forEachIndexed { i, item ->
-                    if (i > 0) list.addView(dashes(C.DASH, 2))
-                    if (item.isWord) {
-                        val row = hbox(12)
-                        row.addView(text(item.ceb, 17f, 800), lp(0, WRAP, 1f))
-                        row.addView(text(item.fr, 17f, 500).apply { gravity = Gravity.END })
-                        list.addView(row, lp())
-                    } else {
-                        val one = vbox(1)
-                        one.addView(text(item.ceb, 16f, 800, line = 1.2f))
-                        one.addView(text(item.fr, 15f, 500, line = 1.2f))
-                        list.addView(one, lp())
-                    }
-                }
-                addView(list, lp())
-            }
+            if (n > 0) addView(itemList(newTitle(s.newItems), s.newItems), lp())
         }
 
         val buttons = mutableListOf<View>(navyButton("RETOUR À L'ACCUEIL", 58, 18f) { goHome() })
@@ -1040,6 +1273,119 @@ class SessionActivity : Activity() {
             buttons.add(outlineButton("Encore une séance (en bonus)") {})
         }
         actionFooter(*buttons.toTypedArray())
+    }
+
+    /** Le haut jaune de l'écran de fin : ce qui est fini, et un mot selon les bonnes réponses. */
+    private fun endHeader(kicker: String, title: String, s: Session) {
+        val ratio = if (s.gradedTotal == 0) 1f else s.correctFirst.toFloat() / s.gradedTotal
+        val hello = when {
+            ratio >= 0.8f -> "Maayo kaayo, Thomas !"
+            ratio >= 0.5f -> "Maayo, Thomas !"
+            else -> "Padayon, Thomas ! Continue comme ça."
+        }
+        val top = vbox(4).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            setBackgroundColor(C.YELLOW)
+            pad(22, 30, 22, 24)
+        }
+        top.addView(text(kicker, 14f, 700, spacing = 0.08f).apply { gravity = Gravity.CENTER }, lp())
+        top.addView(text(title, 42f, 800, line = 0.95f).apply { gravity = Gravity.CENTER }, lp())
+        top.addView(text(hello, 19f, 700).apply { gravity = Gravity.CENTER }, lp())
+        val h = vbox()
+        h.addView(top, lp())
+        h.addView(stripes())
+        setHead(h, line = false)
+    }
+
+    private fun newTitle(items: List<Item>) = when {
+        items.all { it.isWord } -> "TES NOUVEAUX MOTS"
+        items.none { it.isWord } -> "TES NOUVELLES PHRASES"
+        else -> "TES NOUVEAUTÉS"
+    }
+
+    /** Une liste de mots (cebuano à gauche, français à droite) ou de phrases (l'une sous l'autre). */
+    private fun itemList(title: String, items: List<Item>, note: String? = null): View {
+        val list = vbox(8)
+        list.addView(text(title, 16f, 800))
+        items.forEachIndexed { i, item ->
+            if (i > 0) list.addView(dashes(C.DASH, 2))
+            if (item.isWord) {
+                val row = hbox(12)
+                row.addView(text(item.ceb, 17f, 800), lp(0, WRAP, 1f))
+                row.addView(text(item.fr, 17f, 500).apply { gravity = Gravity.END })
+                list.addView(row, lp())
+            } else {
+                val one = vbox(1)
+                one.addView(text(item.ceb, 17f, 800, line = 1.2f))
+                one.addView(text(item.fr, 15f, 500, line = 1.2f))
+                list.addView(one, lp())
+            }
+        }
+        note?.let { list.addView(text(it, 14f, 600, C.GRAY, line = 1.35f).apply { pad(0, 4, 0, 0) }) }
+        return list
+    }
+
+    // ---------- Fin d'une traduction ou d'un entraînement ----------
+
+    private fun showPracticeEnd() {
+        val r = run!!
+        val s = r.session
+        val outcome = r.outcome ?: r.progress.finishPractice(content, r.day, s.correctFirst).also {
+            r.outcome = it
+            store.save(r.progress)
+            Buzz.win(this)
+        }
+        Gloss.dismiss()
+        val total = s.gradedTotal
+        val kicker = when (s.mode) {
+            Mode.LESSON -> "LEÇON ${s.stop?.number ?: ""} · ENTRAÎNEMENT"
+            Mode.TRANSLATE_WORDS -> "TRADUCTION · ${Fr.count(total, "MOT", "MOTS")}"
+            else -> "TRADUCTION · ${Fr.count(total, "PHRASE", "PHRASES")}"
+        }
+        endHeader(kicker, "C'EST FINI !", s)
+
+        page(16, top = 20) {
+            val row = hbox(12)
+            row.addView(stat("${s.correctFirst} / $total", "bonnes réponses"), lp(0, WRAP, 1f))
+            row.addView(stat("+${outcome.points}", "points gagnés"), lp(0, WRAP, 1f))
+            addView(row, lp())
+            for (b in outcome.newBadges) addView(badgeCard(b), lp())
+            if (outcome.completedStops.isNotEmpty()) addView(stopsCard(outcome.completedStops), lp())
+            if (s.missed.isNotEmpty()) addView(itemList("À REVOIR", s.missed, reviewNote(s.missed)), lp())
+            if (s.newItems.isNotEmpty()) addView(itemList(newTitle(s.newItems), s.newItems), lp())
+        }
+
+        val again = when (s.mode) {
+            Mode.LESSON -> "Encore ${Fr.count(minOf(Planner.EXERCISES, s.stop?.items?.size ?: 0), "question", "questions")}"
+            Mode.TRANSLATE_WORDS -> "Encore ${Fr.count(total, "mot", "mots")}"
+            else -> "Encore ${Fr.count(total, "phrase", "phrases")}"
+        }
+        actionFooter(
+            navyButton(if (s.mode == Mode.LESSON) "RETOUR À LA LEÇON" else "RETOUR À L'ACCUEIL", 58, 18f) { goHome() },
+            outlineButton(again) { startAgain(s) },
+        )
+    }
+
+    /** « Ces 2 phrases reviendront plus souvent dans tes séances. » */
+    private fun reviewNote(missed: List<Item>): String {
+        val n = missed.size
+        val words = missed.all { it.isWord }
+        return when {
+            n == 1 && words -> "Ce mot reviendra plus souvent dans tes séances."
+            n == 1 -> "Cette phrase reviendra plus souvent dans tes séances."
+            words -> "Ces $n mots reviendront plus souvent dans tes séances."
+            else -> "Ces $n phrases reviendront plus souvent dans tes séances."
+        }
+    }
+
+    /** « Encore 10 mots » : une nouvelle traduction (ou un nouvel entraînement), avec d'autres mots. */
+    private fun startAgain(s: Session) {
+        Data.running = null
+        val i = Intent(this, SessionActivity::class.java)
+        if (s.mode == Mode.LESSON) i.putExtra(EXTRA_PRACTICE, s.stop!!.key)
+        else i.putExtra(EXTRA_TRANSLATE, if (s.mode == Mode.TRANSLATE_WORDS) "WORDS" else "PHRASES")
+        startActivity(i)
+        finish()
     }
 
     private fun startNew(slot: Slot?) {
@@ -1117,9 +1463,15 @@ class SessionActivity : Activity() {
             pr = store.progress()
         }
         val today = Store.today()
+        val random = Random(5)
+        if (kind.startsWith("TR_") || kind == "PRACTICE") {
+            startPracticeDemo(kind, pr, today, random)
+            if (answer != null) body.postDelayed({ demoHook?.invoke(answer) }, 700)
+            return
+        }
         val line = when (kind) {
             "LESSON", "GAP" -> Line.COMPLEX
-            "ORDER" -> Line.SIMPLE
+            "ORDER", "CHOOSE_PHRASE", "WRITE_PHRASE" -> Line.SIMPLE
             else -> Line.VOCAB
         }
         val slot = when {
@@ -1128,12 +1480,13 @@ class SessionActivity : Activity() {
             line == Line.SIMPLE -> Slot.MIDI
             else -> Slot.SOIR
         }
-        val random = Random(5)
         val built = Planner.build(content, pr, slot, line, today, random)
         val first: Step? = when (kind) {
             "END" -> null
             "LESSON" -> built.steps.firstOrNull { it is LessonStep } ?: LessonStep(content.stops(Line.COMPLEX).first { it.lesson != null })
             "NEW" -> built.steps.firstOrNull { it is NewStep } ?: NewStep(content.items(Line.VOCAB).first { !pr.isIntroduced(it) })
+            "CHOOSE_PHRASE" -> Planner.exercise(content, Kind.CHOOSE_CEB, demoItem("Gigutom ko."), true, random)
+            "WRITE_PHRASE" -> Planner.exercise(content, Kind.WRITE, demoItem("Asa ka nagpuyo?"), true, random)
             else -> {
                 val k = Kind.valueOf(kind)
                 built.steps.firstOrNull { it is Exercise && it.kind == k } ?: demoExercise(k, line, pr, random)
@@ -1157,6 +1510,42 @@ class SessionActivity : Activity() {
         if (answer != null) body.postDelayed({ demoHook?.invoke(answer) }, 700)
     }
 
+    /** Démo d'une traduction (un mot, une phrase, vers le français, l'écran de fin) ou d'un entraînement. */
+    private fun startPracticeDemo(kind: String, pr: Progress, today: Long, random: Random) {
+        val session = if (kind == "PRACTICE") {
+            // La leçon la plus avancée : ses phrases sont déjà vues, on tombe sur une question.
+            val stop = content.lessons.maxByOrNull { st -> st.items.count { pr.isIntroduced(it) } }!!
+            Planner.buildLessonPractice(content, pr, stop, today, random)
+        } else {
+            val built = Planner.buildTranslation(content, pr, kind == "TR_WORD", today, random)!!
+            val first = when (kind) {
+                "TR_WORD" -> Planner.exercise(content, Kind.WRITE, demoItem("kusina"), true, random)
+                "TR_PHRASE" -> Planner.exercise(content, Kind.WRITE, demoItem("Nagtrabaho ko uban sa mga bata."), true, random)
+                "TR_INVERSE" -> Planner.exercise(content, Kind.TRANSLATE_FR, demoItem("Asa ka nagpuyo?"), true, random)
+                else -> null
+            }
+            if (first != null) {
+                built.steps.removeAll { it is Exercise && it.item == first.item }
+                built.steps.add(0, first)
+                while (built.steps.size > Planner.EXERCISES) built.steps.removeAt(built.steps.size - 1)
+            }
+            built
+        }
+        run = Running(null, false, today, pr, session)
+        if (kind == "TR_END") {
+            var n = 0
+            while (!session.finished) {
+                val step = session.current!!
+                session.onShown(step)
+                if (step is Exercise) session.submit(step, n++ !in setOf(1, 5))
+                session.next()
+            }
+        }
+        showCurrent()
+    }
+
+    private fun demoItem(ceb: String): Item = content.items.first { it.ceb == ceb }
+
     private fun demoExercise(kind: Kind, line: Line, pr: Progress, random: Random): Exercise {
         val seen = content.items(line).filter { pr.isIntroduced(it) }.ifEmpty { content.items(line).take(8) }
         return when (kind) {
@@ -1170,7 +1559,10 @@ class SessionActivity : Activity() {
     companion object {
         const val EXTRA_SLOT = "slot"
         const val EXTRA_BONUS = "bonus"
-        const val EXTRA_LESSON = "lesson"
+        /** « WORDS » ou « PHRASES » : une traduction de 10 mots ou de 10 phrases. */
+        const val EXTRA_TRANSLATE = "translate"
+        /** La clé d'un arrêt (« c7 ») : s'entraîner sur sa leçon. */
+        const val EXTRA_PRACTICE = "practice"
         const val EXTRA_DEMO_STEP = "demoStep"
         const val EXTRA_DEMO_ANSWER = "demoAnswer"
         private const val M_IDLE = 0

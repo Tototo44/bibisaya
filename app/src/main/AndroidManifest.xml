@@ -18,7 +18,7 @@
         android:supportsRtl="false"
         android:theme="@style/Theme.BiBisaya">
 
-        <!-- L'accueil, la route, le lexique et les badges -->
+        <!-- L'accueil, la route, les leçons, le lexique et les badges -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -31,12 +31,18 @@
             </intent-filter>
         </activity>
 
-        <!-- Une séance d'exercices -->
+        <!-- Une séance d'exercices, une traduction ou un entraînement sur une leçon -->
         <activity
             android:name=".SessionActivity"
             android:exported="false"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Une leçon ou une fiche de l'onglet Leçons -->
+        <activity
+            android:name=".LessonActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
 
         <activity
             android:name=".SettingsActivity"

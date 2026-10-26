@@ -65,6 +65,8 @@ class Progress {
     val badges = linkedMapOf<Badge, Long>()
     val completedStops = mutableSetOf<String>()
     val lessonsSeen = mutableSetOf<String>()
+    /** Les leçons et fiches ouvertes depuis l'onglet Leçons (elles restent montrées dans les séances). */
+    val lessonsRead = mutableSetOf<String>()
     val daySlots = mutableMapOf<Long, MutableSet<Slot>>()
 
     fun state(item: Item): ItemState? = items[item.id]
@@ -169,6 +171,16 @@ class Progress {
         return Outcome(gained, perfect, streak, newBadges, stops)
     }
 
+    /** Fin d'une traduction ou d'un entraînement sur une leçon : des points, mais ce n'est pas une des 3 séances. */
+    fun finishPractice(content: Content, today: Long, correct: Int): Outcome {
+        val gained = correct * POINTS_ANSWER
+        points += gained
+        val stops = refreshStops(content)
+        val newBadges = Badge.values().filter { it !in badges && earned(content, it, today) }
+        for (b in newBadges) badges[b] = today
+        return Outcome(gained, false, currentStreak(today), newBadges, stops)
+    }
+
     fun earned(content: Content, badge: Badge, today: Long): Boolean {
         val (cur, target) = badgeProgress(content, badge, today)
         return cur >= target
@@ -208,6 +220,7 @@ class Progress {
         append("badges=${badges.entries.joinToString(",") { "${it.key.name}:${it.value}" }}\n")
         append("stops=${completedStops.sorted().joinToString(",")}\n")
         append("lessons=${lessonsSeen.sorted().joinToString(",")}\n")
+        append("read=${lessonsRead.sorted().joinToString(",")}\n")
         append("days=${daySlots.entries.joinToString(",") { e -> "${e.key}:${e.value.joinToString("") { it.code }}" }}\n")
         for ((id, s) in items) append("i:$id=${s.level},${s.dueDay},${s.lastUpDay},${s.introDay}\n")
     }
@@ -256,6 +269,7 @@ class Progress {
                         }
                         key == "stops" -> p.completedStops.addAll(value.split(',').filter { it.isNotBlank() })
                         key == "lessons" -> p.lessonsSeen.addAll(value.split(',').filter { it.isNotBlank() })
+                        key == "read" -> p.lessonsRead.addAll(value.split(',').filter { it.isNotBlank() })
                         key == "days" -> value.split(',').filter { it.isNotBlank() }.forEach {
                             val slots = it.substringAfter(':').mapNotNull { c -> Slot.of(c.toString()) }
                             p.daySlots[it.substringBefore(':').toLong()] = slots.toMutableSet()

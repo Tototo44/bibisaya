@@ -10,6 +10,11 @@ Chaque jour, 3 séances de 10 exercices (environ 4 minutes) :
 
 Un rappel arrive à l'heure de chaque séance. Les mots ratés reviennent plus souvent, les mots bien connus de plus en plus rarement. Points, série de jours, badges et une route de jeepney par ligne pour voir sa progression.
 
+En plus des séances :
+
+- **Traduire** : 10 mots ou 10 phrases déjà vus, à écrire surtout en cebuano (et parfois en français). Les phrases sont corrigées mot par mot.
+- **Leçons** : les 11 leçons de grammaire, toutes ouvertes, avec un entraînement de 10 questions par leçon, et deux fiches tirées des cours (les mots pour poser une question, et le grand tableau des personnes).
+
 Tout reste sur le téléphone : pas de compte, pas besoin d'internet.
 
 ## Installer

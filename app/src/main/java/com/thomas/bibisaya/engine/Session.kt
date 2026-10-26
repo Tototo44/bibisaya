@@ -14,8 +14,20 @@ enum class Kind {
     MATCH,
     /** Remettre la phrase dans l'ordre avec des étiquettes. */
     ORDER,
-    /** Écrire le mot en cebuano. */
+    /** Écrire le mot (ou la phrase) en cebuano. */
     WRITE,
+    /** On lit le cebuano, on écrit en français (mode « Traduire »). */
+    TRANSLATE_FR,
+}
+
+/** Ce que fait la série de questions : une séance du jour (ou un bonus), une traduction, ou s'entraîner sur une leçon. */
+enum class Mode {
+    SESSION,
+    TRANSLATE_WORDS,
+    TRANSLATE_PHRASES,
+    LESSON;
+
+    val isTranslation get() = this == TRANSLATE_WORDS || this == TRANSLATE_PHRASES
 }
 
 sealed class Step
@@ -46,6 +58,7 @@ class Exercise(
             Kind.CHOOSE_CEB -> item.ceb
             Kind.CHOOSE_FR -> item.fr
             Kind.GAP -> item.gapAnswer!!
+            Kind.TRANSLATE_FR -> item.fr
             else -> item.ceb
         }
 }
@@ -63,6 +76,9 @@ class Session(
     val today: Long,
     val steps: MutableList<Step>,
     private val random: Random,
+    val mode: Mode = Mode.SESSION,
+    /** L'arrêt (la leçon) travaillé, en mode LESSON. */
+    val stop: Stop? = null,
 ) {
     var index = 0
         private set
@@ -71,7 +87,21 @@ class Session(
     var gradedAnswered = 0
         private set
     val newItems = mutableListOf<Item>()
+    /** Les mots ratés du premier coup (la liste « À revoir »). */
+    val missed = mutableListOf<Item>()
     private val retried = mutableSetOf<String>()
+    private var undo: Undo? = null
+
+    /** De quoi annuler la dernière réponse (« Ma réponse était juste aussi »). */
+    private class Undo(
+        val ex: Exercise,
+        val states: Map<String, ItemState?>,
+        val gradedAnswered: Int,
+        val correctFirst: Int,
+        val missed: Int,
+        val retried: Set<String>,
+        val steps: List<Step>,
+    )
 
     val current: Step? get() = steps.getOrNull(index)
     val gradedTotal: Int get() = steps.count { it is Exercise && it.graded }
@@ -95,18 +125,26 @@ class Session(
      * Un mot raté revient un peu plus tard dans la séance (une seule fois).
      */
     fun submit(ex: Exercise, correct: Boolean, wrongItems: Set<Item> = emptySet()): Feedback {
+        undo = Undo(
+            ex,
+            ex.items.associate { it.id to progress.state(it)?.let { s -> ItemState(s.level, s.dueDay, s.lastUpDay, s.introDay) } },
+            gradedAnswered, correctFirst, missed.size, retried.toSet(), steps.toList(),
+        )
         if (ex.graded) {
             gradedAnswered++
             if (correct) correctFirst++
         }
         if (!ex.graded) return Feedback(correct, null, retry = false)
         val failed = if (ex.kind == Kind.MATCH) wrongItems.toList() else if (!correct) listOf(ex.item) else emptyList()
+        missed.addAll(failed.filter { it !in missed })
         var change: Change? = null
         for (item in ex.items) {
             val c = progress.answer(item, item !in failed, today)
             if (item == ex.item) change = c
         }
         var retry = false
+        // En mode « Traduire », pas de deuxième essai : la liste « À revoir » le dit à la fin.
+        if (mode.isTranslation) return Feedback(correct, change, retry = false)
         for (item in failed.take(2)) {
             if (!retried.add(item.id)) continue
             val kind = when {
@@ -124,6 +162,21 @@ class Session(
         return Feedback(correct, change, retry)
     }
 
+    /** « Ma réponse était juste aussi » : la dernière réponse, comptée fausse, devient juste. */
+    fun acceptLast(): Feedback? {
+        val u = undo ?: return null
+        for ((id, state) in u.states) if (state == null) progress.items.remove(id) else progress.items[id] = state
+        gradedAnswered = u.gradedAnswered
+        correctFirst = u.correctFirst
+        while (missed.size > u.missed) missed.removeAt(missed.size - 1)
+        retried.retainAll(u.retried)
+        // On retire la question qui devait revenir, sans toucher à celle qui est à l'écran.
+        val kept = u.steps.toSet()
+        steps.removeAll { it !in kept }
+        undo = null
+        return submit(u.ex, true)
+    }
+
     fun next() {
         index++
     }
@@ -135,6 +188,10 @@ class Session(
 /** Prépare les séances : quelques nouveautés, puis des révisions, le plus fragile d'abord. */
 object Planner {
     const val EXERCISES = 10
+    /** Une phrase à écrire en entier pendant une séance : pas plus de 6 mots. */
+    const val MAX_WRITE_TOKENS = 6
+    /** En mode « Traduire », une phrase à écrire en cebuano : pas plus de 8 mots. */
+    const val MAX_TRANSLATE_TOKENS = 8
 
     fun newQuota(line: Line) = when (line) {
         Line.VOCAB -> 3
@@ -256,22 +313,27 @@ object Planner {
 
     private fun canOrder(item: Item) = item.tokens.size >= 2
 
+    /** Assez court pour l'écrire en entier. */
+    fun canWrite(item: Item) = item.isWord || item.tokens.size <= MAX_WRITE_TOKENS
+
+    /** Plus un mot est connu, plus on l'écrit soi-même (au lieu de le choisir). */
     fun reviewKind(item: Item, level: Int, random: Random): Kind {
         val k = when (item.line) {
             Line.VOCAB -> when {
                 level <= 1 -> if (random.nextBoolean()) Kind.CHOOSE_CEB else Kind.CHOOSE_FR
                 level == 2 -> listOf(Kind.CHOOSE_FR, Kind.WRITE, Kind.CHOOSE_CEB).random(random)
-                else -> if (random.nextInt(10) < 6) Kind.WRITE else Kind.CHOOSE_CEB
+                else -> if (random.nextInt(10) < 8) Kind.WRITE else Kind.CHOOSE_CEB
             }
             Line.SIMPLE -> when {
                 level <= 1 -> Kind.CHOOSE_CEB
                 level == 2 -> if (random.nextBoolean()) Kind.ORDER else Kind.CHOOSE_FR
-                item.isShort && random.nextBoolean() -> Kind.WRITE
+                canWrite(item) && random.nextInt(10) < 6 -> Kind.WRITE
                 else -> Kind.ORDER
             }
             Line.COMPLEX -> when {
                 level <= 1 -> if (item.hasGap) Kind.GAP else Kind.ORDER
                 level == 2 -> if (item.hasGap && random.nextBoolean()) Kind.GAP else Kind.ORDER
+                canWrite(item) && random.nextInt(10) < 4 -> Kind.WRITE
                 else -> Kind.ORDER
             }
         }
@@ -290,12 +352,49 @@ object Planner {
     }
 
     fun exercise(content: Content, kind: Kind, item: Item, graded: Boolean, random: Random): Exercise = when (kind) {
-        Kind.CHOOSE_CEB -> Exercise(kind, listOf(item), choices(content, item, random) { it.ceb }, graded)
-        Kind.CHOOSE_FR -> Exercise(kind, listOf(item), choices(content, item, random) { it.fr }, graded)
+        Kind.CHOOSE_CEB -> Exercise(kind, listOf(item), if (item.isWord) choices(content, item, random) { it.ceb } else phraseChoices(content, item, random, ceb = true), graded)
+        Kind.CHOOSE_FR -> Exercise(kind, listOf(item), if (item.isWord) choices(content, item, random) { it.fr } else phraseChoices(content, item, random, ceb = false), graded)
         Kind.GAP -> Exercise(kind, listOf(item), item.gapOptions!!.shuffled(random), graded)
         Kind.ORDER -> Exercise(kind, listOf(item), tiles(content, item, random), graded)
-        Kind.WRITE -> Exercise(kind, listOf(item), emptyList(), graded)
+        Kind.WRITE, Kind.TRANSLATE_FR -> Exercise(kind, listOf(item), emptyList(), graded)
         Kind.MATCH -> error("MATCH se prépare avec buildMatch")
+    }
+
+    /** La forme d'une phrase : question, exclamation ou phrase simple, et avec ou sans nom propre. */
+    private fun shape(text: String): Pair<Char, Boolean> {
+        val end = text.trimEnd().lastOrNull { it in "?!." } ?: '.'
+        return end to Content.tokenize(text).drop(1).any { it.first().isUpperCase() }
+    }
+
+    /**
+     * 4 phrases de même forme (que des questions, ou toutes avec un prénom…) : on ne peut plus éliminer.
+     * En cebuano, des pièges où un seul mot change (ako / ikaw, nagtrabaho / magtrabaho…).
+     */
+    fun phraseChoices(content: Content, item: Item, random: Random, ceb: Boolean): List<String> {
+        val text: (Item) -> String = if (ceb) { i -> i.ceb } else { i -> i.fr }
+        val answer = text(item)
+        val taken = mutableSetOf(Answers.normalize(answer))
+        if (ceb) item.alts.forEach { taken.add(Answers.normalize(it)) }
+        val out = mutableListOf(answer)
+        if (ceb) {
+            for (v in Variants.pick(content, item, random)) if (taken.add(Answers.normalize(v.text))) out.add(v.text)
+        }
+        val form = shape(answer)
+        val candidates = content.items(item.line).filter { it != item && (item.syn == null || it.syn != item.syn) }
+        val tiers = listOf(
+            candidates.filter { it.stop == item.stop },
+            candidates.filter { it.stop != item.stop && kotlin.math.abs(it.stop - item.stop) <= 2 },
+            candidates.filter { kotlin.math.abs(it.stop - item.stop) > 2 },
+        )
+        // D'abord la même forme et une longueur proche, puis le reste.
+        fun gap(c: Item) = kotlin.math.abs(c.tokens.size - item.tokens.size).let { if (it <= 1) 0 else if (it <= 3) 1 else 2 }
+        val same = tiers.flatMap { tier -> tier.filter { shape(text(it)) == form }.shuffled(random).sortedBy { gap(it) } }
+        val others = tiers.flatMap { tier -> tier.filter { shape(text(it)) != form }.shuffled(random) }
+        for (c in same + others) {
+            if (out.size >= 4) break
+            if (taken.add(Answers.normalize(text(c)))) out.add(text(c))
+        }
+        return out.shuffled(random)
     }
 
     /** 4 choix : la bonne réponse et 3 pièges pris dans la même ligne, de préférence dans le même arrêt. */
@@ -314,21 +413,98 @@ object Planner {
         return out.shuffled(random)
     }
 
-    /** Les étiquettes : les mots de la phrase, plus 1 ou 2 pièges, bien mélangés. */
+    /** Une étiquette en minuscule (la majuscule du début de phrase trahirait le premier mot), sauf un nom propre. */
+    fun tileText(content: Content, token: String): String =
+        if (Answers.normalize(token) in content.properNouns) token else token.replaceFirstChar { it.lowercase() }
+
+    /** Les étiquettes : les mots de la phrase, plus 1 ou 2 pièges qui leur ressemblent, bien mélangés. */
     fun tiles(content: Content, item: Item, random: Random): List<String> {
-        val words = item.tokens
+        val words = item.tokens.map { tileText(content, it) }
         val inSentence = words.map { Answers.normalize(it) }.toSet()
-        val traps = content.items(item.line)
-            .filter { it != item }
-            .flatMap { other -> other.tokens.mapIndexedNotNull { i, t -> if (i == 0) t.lowercase() else if (t.first().isUpperCase()) null else t } }
-            .filter { Answers.normalize(it) !in inSentence && Answers.normalize(it).length >= 2 }
-            .distinctBy { Answers.normalize(it) }
-            .shuffled(random)
-            .take(if (words.size <= 3) 1 else 2)
+        val count = if (words.size <= 3) 1 else 2
+        val traps = mutableListOf<String>()
+        val places = mutableSetOf<Int>()
+        // D'abord des mots qui ressemblent à un mot de la phrase (ka pour ko, magtrabaho pour nagtrabaho)…
+        for ((index, word) in Variants.lookAlikes(content, item).shuffled(random)) {
+            if (traps.size >= count) break
+            if (index in places || Answers.normalize(word) in inSentence) continue
+            traps.add(tileText(content, word))
+            places.add(index)
+        }
+        // … sinon des mots d'autres phrases de la même ligne.
+        if (traps.size < count) {
+            traps += content.items(item.line)
+                .filter { it != item }
+                .flatMap { other -> other.tokens.mapIndexedNotNull { i, t -> if (i == 0) tileText(content, t) else if (t.first().isUpperCase()) null else t } }
+                .filter { Answers.normalize(it) !in inSentence && Answers.normalize(it).length >= 2 && traps.none { t -> Answers.same(t, it) } }
+                .distinctBy { Answers.normalize(it) }
+                .shuffled(random)
+                .take(count - traps.size)
+        }
         var mixed = (words + traps).shuffled(random)
         var tries = 0
         while (mixed.take(words.size) == words && tries++ < 10) mixed = mixed.shuffled(random)
         return mixed
+    }
+
+    /**
+     * « Traduire » : 10 mots (ou phrases) déjà vus, les plus fragiles d'abord. 8 à écrire en cebuano,
+     * 2 à écrire en français. [avoid] : ceux de la traduction d'avant, gardés pour plus tard.
+     * Null s'il n'y a encore rien à traduire.
+     */
+    fun buildTranslation(
+        content: Content,
+        progress: Progress,
+        words: Boolean,
+        today: Long,
+        random: Random = Random.Default,
+        avoid: Set<String> = emptySet(),
+    ): Session? {
+        val lines = if (words) listOf(Line.VOCAB) else listOf(Line.SIMPLE, Line.COMPLEX)
+        val seen = content.items.filter { it.line in lines && progress.isIntroduced(it) }
+        if (seen.isEmpty()) return null
+        val ranked = seen.shuffled(random).sortedWith(
+            compareBy<Item>({ it.id in avoid }, { progress.level(it) }, { progress.state(it)!!.dueDay })
+        )
+        val total = minOf(EXERCISES, seen.size)
+        val inverse = total / 5
+        val toCeb = ranked.filter { words || it.tokens.size <= MAX_TRANSLATE_TOKENS }.take(total - inverse)
+        val toFr = ranked.filter { it !in toCeb }.take(total - toCeb.size)
+        val steps = mutableListOf<Step>()
+        toCeb.shuffled(random).forEach { steps.add(exercise(content, Kind.WRITE, it, true, random)) }
+        // Vers le français : à la 4e et à la 8e question.
+        toFr.forEachIndexed { k, item ->
+            val at = (3 + 4 * k).coerceAtMost(steps.size)
+            steps.add(at, exercise(content, Kind.TRANSLATE_FR, item, true, random))
+        }
+        val mode = if (words) Mode.TRANSLATE_WORDS else Mode.TRANSLATE_PHRASES
+        return Session(content, progress, null, null, today, steps, random, mode)
+    }
+
+    /**
+     * S'entraîner sur une leçon : une question sur chaque phrase de l'arrêt, les plus fragiles d'abord.
+     * Une phrase jamais vue a d'abord sa carte « nouvelle phrase ».
+     */
+    fun buildLessonPractice(content: Content, progress: Progress, stop: Stop, today: Long, random: Random = Random.Default): Session {
+        val chosen = stop.items.shuffled(random).sortedBy { progress.level(it) }.take(EXERCISES)
+        val steps = mutableListOf<Step>()
+        for (item in chosen.shuffled(random)) {
+            if (!progress.isIntroduced(item)) {
+                steps.add(NewStep(item))
+                steps.add(exercise(content, firstKind(item), item, true, random))
+            } else {
+                steps.add(exercise(content, practiceKind(item, progress.level(item), random), item, true, random))
+            }
+        }
+        return Session(content, progress, null, stop.line, today, steps, random, Mode.LESSON, stop)
+    }
+
+    private fun practiceKind(item: Item, level: Int, random: Random): Kind {
+        val kinds = mutableListOf(Kind.CHOOSE_CEB, Kind.ORDER)
+        if (item.hasGap) kinds.add(Kind.GAP)
+        if (level >= 2 && canWrite(item)) kinds.add(Kind.WRITE)
+        val k = kinds.random(random)
+        return if (k == Kind.ORDER && !canOrder(item)) Kind.CHOOSE_CEB else k
     }
 
     /** « Relier » : 3 à 5 paires de la même ligne, sans doublon ni mot trop proche. */

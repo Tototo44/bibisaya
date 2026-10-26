@@ -26,6 +26,7 @@ import android.text.Spanned
 import android.text.TextPaint
 import android.text.TextWatcher
 import android.text.style.MetricAffectingSpan
+import android.text.style.ReplacementSpan
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -69,6 +70,8 @@ object C {
     const val GRAY = 0xFF4A4F6E.toInt()
     const val DASH = 0xFFB9B2A0.toInt()
     const val DASH_LIGHT = 0xFFD9CFBD.toInt()
+    /** Le panneau « Ta réponse veut dire la même chose ? ». */
+    const val PALE_YELLOW = 0xFFFFF1C2.toInt()
 }
 
 /** La police Bricolage Grotesque : une seule police, réglée en épaisseur et en taille d'œil. */
@@ -361,6 +364,20 @@ fun Context.squareButton(res: Int, description: String, shadow: Boolean, onClick
         addView(i, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
         onTap(onClick)
     }
+
+/** L'en-tête jaune d'une page : le bouton retour, un petit titre et un grand titre (« LEÇON 7 »). */
+fun Context.backHeader(kicker: String, title: String, onBack: () -> Unit): LinearLayout {
+    val header = hbox(14).apply {
+        setBackgroundColor(C.YELLOW)
+        pad(20, 22, 20, 16)
+    }
+    header.addView(squareButton(R.drawable.ic_back, "Retour", shadow = true) { onBack() })
+    val titles = vbox(2)
+    titles.addView(text(kicker, 13f, 700, spacing = 0.06f))
+    titles.addView(text(title, if (title.length > 14) 26f else 30f, 800, line = 0.95f))
+    header.addView(titles, lp(0, WRAP, 1f))
+    return header
+}
 
 /** Les bandes rouge, bleu, blanc du jeepney. */
 class Stripes(ctx: Context, private val colors: IntArray = intArrayOf(C.RED, C.NAVY, C.WHITE, C.RED, C.NAVY, C.WHITE)) : View(ctx) {
@@ -746,6 +763,28 @@ fun Context.rich(value: String, size: Float, weight: Int = 500, color: Int = C.N
         if (i % 2 == 1) sb.setSpan(FontSpan(Fonts.get(800, size)), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
     return text(sb, size, weight, color, line = line)
+}
+
+/** Un mot surligné en jaune, aux coins arrondis : le mot qui manquait (ou qui n'était pas le bon). */
+class Highlight(private val bg: Int, private val fg: Int, private val radius: Float, private val padH: Float, private val padV: Float) : ReplacementSpan() {
+    private val box = RectF()
+
+    override fun getSize(paint: Paint, text: CharSequence, start: Int, end: Int, fm: Paint.FontMetricsInt?): Int {
+        if (fm != null) paint.getFontMetricsInt(fm)
+        return (paint.measureText(text, start, end) + 2 * padH).roundToInt()
+    }
+
+    override fun draw(canvas: Canvas, text: CharSequence, start: Int, end: Int, x: Float, top: Int, y: Int, bottom: Int, paint: Paint) {
+        val w = paint.measureText(text, start, end)
+        val old = paint.color
+        val fm = paint.fontMetrics
+        box.set(x, y + fm.ascent - padV, x + w + 2 * padH, y + fm.descent + padV)
+        paint.color = bg
+        canvas.drawRoundRect(box, radius, radius, paint)
+        paint.color = fg
+        canvas.drawText(text, start, end, x + padH, y.toFloat(), paint)
+        paint.color = old
+    }
 }
 
 /** Change la police d'un passage (marche aussi sur les anciens Android). */

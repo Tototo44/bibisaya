@@ -5,6 +5,7 @@ import com.thomas.bibisaya.engine.Content
 import com.thomas.bibisaya.engine.Exercise
 import com.thomas.bibisaya.engine.Kind
 import com.thomas.bibisaya.engine.Line
+import com.thomas.bibisaya.engine.Mode
 import com.thomas.bibisaya.engine.Outcome
 import com.thomas.bibisaya.engine.Plan
 import com.thomas.bibisaya.engine.Planner
@@ -89,6 +90,8 @@ object Data {
     @Volatile
     private var content: Content? = null
     var running: Running? = null
+    /** Les mots de la dernière traduction (de mots, ou de phrases) : la suivante en prend d'autres. */
+    val lastTranslation = mutableMapOf<Mode, Set<String>>()
 
     fun content(ctx: Context): Content = content ?: synchronized(this) {
         content ?: Content.parse(ctx.assets.open("contenu.txt").bufferedReader().use { it.readText() }).also { content = it }
