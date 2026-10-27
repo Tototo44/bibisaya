@@ -107,6 +107,7 @@ screens() {
   # La ronde des personnes (leçons 1 et 4)
   shot "${p}50-lecon-1-ronde" 4 --ez demo true --es demoStep LESSON_C1
   down "${p}50-lecon-1-ronde-bas"
+  down "${p}50-lecon-1-ronde-fin"
   shot "${p}51-ronde-presentation" 4 --ez demo true --es demoStep RONDE_INTRO
   down "${p}51-ronde-presentation-bas"
   shot "${p}52-ronde" 4 --ez demo true --es demoStep RONDE

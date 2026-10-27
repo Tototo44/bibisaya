@@ -1335,7 +1335,7 @@ class SessionActivity : Activity() {
         }
         val who = vbox(2)
         who.addView(label(q.kind.question, 12f))
-        who.addView(text(personLabel(q.kind, q.person), 22f, 800, line = 1.05f))
+        who.addView(text(keep(q.kind.label(q.person)), 22f, 800, line = 1.05f))
         band.addView(who, lp(0, WRAP, 1f))
         band.addView(PeopleView(this, q.person, labels = true))
         card.addView(band, lp())
@@ -1363,13 +1363,20 @@ class SessionActivity : Activity() {
         flow.addView(gap)
         words(q.after)
         bottom.addView(flow, lp())
-        bottom.addView(text(q.french, 16f, 600, C.MUTED, line = 1.25f).apply { gravity = Gravity.CENTER }, lp())
+        bottom.addView(text(keep(q.french), 16f, 600, C.MUTED, line = 1.25f).apply { gravity = Gravity.CENTER }, lp())
         card.addView(bottom, lp())
         return card
     }
 
-    /** « nous (sans toi) » : passe à la ligne avant la parenthèse, jamais au milieu. */
-    private fun personLabel(kind: RondeKind, p: Person) = kind.label(p).replace(" toi)", "\u00A0toi)")
+    /**
+     * « nous (sans toi) », « à nous », « tu » : la ligne ne se coupe jamais dans une parenthèse,
+     * entre « à » et son mot, ni juste après un guillemet.
+     */
+    private fun keep(value: String) = value
+        .replace(Regex("\\([^)]*\\)")) { it.value.replace(' ', '\u00A0') }
+        .replace("« ", "«\u00A0")
+        .replace(" »", "\u00A0»")
+        .replace("à ", "à\u00A0")
 
     /** Pour la démo : la réponse fausse la plus tentante (kita pour kami, ka pour ko…). */
     private fun demoWrong(q: RondeQuestion): String {
@@ -1421,11 +1428,11 @@ class SessionActivity : Activity() {
             chips[picked]?.pop()
             blank.pop()
             Buzz.right(this)
-            if (check.note == null) advanceSoon() else panel(true, rondeRightTitle(), listOf(check.note!!))
+            if (check.note == null) advanceSoon() else panel(true, rondeRightTitle(), listOf(keep(check.note!!)))
         } else {
             chips[picked]?.shake()
             Buzz.wrong(this)
-            panel(false, "Pas tout à fait…", listOfNotNull(check.note))
+            panel(false, "Pas tout à fait…", listOfNotNull(check.note?.let(::keep)))
         }
     }
 
@@ -1449,8 +1456,8 @@ class SessionActivity : Activity() {
         }
         lock(input)
         mark(input, verdict.correct)
-        if (verdict.correct) panel(true, rondeRightTitle(), listOf(verdict.note!!))
-        else panel(false, "Pas tout à fait…", listOfNotNull(verdict.note) + "**${q.sentence}** = ${q.french}")
+        if (verdict.correct) panel(true, rondeRightTitle(), listOf(keep(verdict.note!!)))
+        else panel(false, "Pas tout à fait…", listOfNotNull(verdict.note?.let(::keep)) + "**${q.sentence}** = ${keep(q.french)}")
     }
 
     /** Après une bonne réponse sans rien à expliquer : la question suivante arrive toute seule. */
@@ -1521,7 +1528,7 @@ class SessionActivity : Activity() {
         Person.values().forEachIndexed { i, p ->
             if (i > 0) card.addView(dashes())
             val row = hbox(6).apply { pad(12, 6, 12, 6) }
-            row.addView(text(personLabel(kind, p), 13f, 700, line = 1.15f), LinearLayout.LayoutParams(first, WRAP))
+            row.addView(text(keep(kind.label(p)), 13f, 700, line = 1.15f), LinearLayout.LayoutParams(first, WRAP))
             for (second in listOf(false, true)) row.addView(rondeCell(s, p, second, kind), lp(0, WRAP, 1f))
             card.addView(row, lp())
         }
