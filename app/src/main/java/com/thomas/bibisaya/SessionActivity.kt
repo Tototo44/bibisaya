@@ -1335,7 +1335,7 @@ class SessionActivity : Activity() {
         }
         val who = vbox(2)
         who.addView(label(q.kind.question, 12f))
-        who.addView(text(q.kind.label(q.person), 22f, 800, line = 1.05f))
+        who.addView(text(personLabel(q.kind, q.person), 22f, 800, line = 1.05f))
         band.addView(who, lp(0, WRAP, 1f))
         band.addView(PeopleView(this, q.person, labels = true))
         card.addView(band, lp())
@@ -1367,6 +1367,9 @@ class SessionActivity : Activity() {
         card.addView(bottom, lp())
         return card
     }
+
+    /** « nous (sans toi) » : passe à la ligne avant la parenthèse, jamais au milieu. */
+    private fun personLabel(kind: RondeKind, p: Person) = kind.label(p).replace(" toi)", "\u00A0toi)")
 
     /** Pour la démo : la réponse fausse la plus tentante (kita pour kami, ka pour ko…). */
     private fun demoWrong(q: RondeQuestion): String {
@@ -1518,7 +1521,7 @@ class SessionActivity : Activity() {
         Person.values().forEachIndexed { i, p ->
             if (i > 0) card.addView(dashes())
             val row = hbox(6).apply { pad(12, 6, 12, 6) }
-            row.addView(text(kind.label(p), 13f, 700, line = 1.15f), LinearLayout.LayoutParams(first, WRAP))
+            row.addView(text(personLabel(kind, p), 13f, 700, line = 1.15f), LinearLayout.LayoutParams(first, WRAP))
             for (second in listOf(false, true)) row.addView(rondeCell(s, p, second, kind), lp(0, WRAP, 1f))
             card.addView(row, lp())
         }
