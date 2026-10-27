@@ -142,7 +142,7 @@ class Session(
         val check = Ronde.check(step.q, given)
         gradedAnswered++
         if (check.correct) correctFirst++
-        progress.rondeAnswer(step.q.stop, step.q.person, check.correct, today)
+        progress.rondeAnswer(step.q.stop, step.q.row.key, check.correct, today)
         rondeAnswers.add(RondeAnswer(step.q, given, check))
         return check
     }
@@ -277,7 +277,8 @@ object Planner {
         val reviewExercises = mutableListOf<Exercise>()
         while (reviewExercises.size < reviewCount && reviews.isNotEmpty()) {
             val item = reviews.removeFirst()
-            reviewExercises.add(exercise(content, reviewKind(item, progress.level(item), random), item, true, random))
+            val shown = vary(content, progress, item, random)
+            reviewExercises.add(exercise(content, reviewKind(shown, progress.level(item), random), shown, true, random))
         }
         // Pas assez de révisions (premières séances) : une 2e question sur les nouveautés, puis encore une.
         var round = 0
@@ -285,7 +286,8 @@ object Planner {
             val source = if (newItems.isNotEmpty()) newItems else pool
             for (item in source) {
                 if (reviewExercises.size >= reviewCount) break
-                reviewExercises.add(exercise(content, secondKind(item, round), item, true, random))
+                val shown = vary(content, progress, item, random)
+                reviewExercises.add(exercise(content, secondKind(shown, round), shown, true, random))
             }
             round++
         }
@@ -344,6 +346,16 @@ object Planner {
     private fun shuffleTies(items: List<Item>, progress: Progress, today: Long, random: Random): List<Item> {
         val groups = items.groupBy { val s = progress.state(it)!!; (if (s.dueDay <= today) 0 else 1) * 10 + s.level }
         return groups.keys.sorted().flatMap { groups.getValue(it).shuffled(random) }
+    }
+
+    /**
+     * Une phrase compliquée déjà vue : un peu plus de 8 fois sur 10, l'appli en fabrique une neuve avec les mêmes
+     * règles et d'autres mots (voir [Fabrique]). On apprend ainsi la règle, pas la phrase par cœur.
+     * La progression reste celle de la phrase du cours. Les phrases simples, toutes faites, ne changent pas.
+     */
+    fun vary(content: Content, progress: Progress, item: Item, random: Random, maxTokens: Int = Int.MAX_VALUE): Item {
+        if (item.line != Line.COMPLEX || random.nextInt(100) >= Fabrique.PERCENT) return item
+        return Fabrique.build(content, progress, item, random, maxTokens) ?: item
     }
 
     /** La question juste après la carte « nouveau mot ». */
@@ -420,6 +432,9 @@ object Planner {
         val out = mutableListOf(answer)
         if (ceb) {
             for (v in Variants.pick(content, item, random)) if (taken.add(Answers.normalize(v.text))) out.add(v.text)
+        } else if (item is Built) {
+            // Une phrase fabriquée : les mêmes mots, avec une autre personne (ou un autre moment, une autre distance).
+            for (t in item.frTraps) if (out.size < 4 && taken.add(Answers.normalize(t.fr))) out.add(t.fr)
         }
         val form = shape(answer)
         val candidates = content.items(item.line).filter { it != item && (item.syn == null || it.syn != item.syn) }
@@ -535,11 +550,13 @@ object Planner {
         val toCeb = ranked.filter { words || it.tokens.size <= MAX_TRANSLATE_TOKENS }.take(reviewCount - inverse)
         val toFr = ranked.filter { it !in toCeb }.take(reviewCount - toCeb.size)
         val reviews = mutableListOf<Exercise>()
-        toCeb.shuffled(random).forEach { reviews.add(exercise(content, Kind.WRITE, it, true, random)) }
+        toCeb.shuffled(random).forEach {
+            reviews.add(exercise(content, Kind.WRITE, vary(content, progress, it, random, MAX_TRANSLATE_TOKENS), true, random))
+        }
         // Vers le français : à la 4e et à la 8e question.
         toFr.forEachIndexed { k, item ->
             val at = (3 + 4 * k).coerceAtMost(reviews.size)
-            reviews.add(at, exercise(content, Kind.TRANSLATE_FR, item, true, random))
+            reviews.add(at, exercise(content, Kind.TRANSLATE_FR, vary(content, progress, item, random), true, random))
         }
         val steps = withNewWords(content, reviews, fresh, random)
         val mode = if (words) Mode.TRANSLATE_WORDS else Mode.TRANSLATE_PHRASES
@@ -583,21 +600,25 @@ object Planner {
         val chosen = (fresh + seen).take(EXERCISES)
         val units = chosen.map { item ->
             if (item in fresh) listOf(NewStep(item), exercise(content, firstKind(item), item, true, random))
-            else listOf(exercise(content, practiceKind(item, progress.level(item), random), item, true, random))
+            else {
+                val shown = vary(content, progress, item, random)
+                listOf(exercise(content, practiceKind(shown, progress.level(item), random), shown, true, random))
+            }
         }.shuffled(random)
         val more = mutableListOf<Exercise>()
         var round = 0
         while (chosen.size + more.size < EXERCISES && chosen.isNotEmpty() && round < 6) {
             for (item in chosen) {
                 if (chosen.size + more.size >= EXERCISES) break
-                more.add(exercise(content, secondKind(item, round), item, true, random))
+                val shown = vary(content, progress, item, random)
+                more.add(exercise(content, secondKind(shown, round), shown, true, random))
             }
             round++
         }
         // Les questions en plus, mélangées, mais pas deux fois de suite sur le même mot.
         val extra = more.shuffled(random).toMutableList()
         val last = (units.lastOrNull()?.last() as? Exercise)?.item
-        if (extra.size > 1 && extra.first().item == last) extra.add(extra.removeAt(0))
+        if (extra.size > 1 && extra.first().item.id == last?.id) extra.add(extra.removeAt(0))
         val steps = (units.flatten() + extra).toMutableList()
         return Session(content, progress, null, stop.line, today, steps, random, Mode.LESSON, stop)
     }

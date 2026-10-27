@@ -174,7 +174,7 @@ object Answers {
      * Thomas juge lui-même si sa phrase veut dire la même chose.
      */
     fun checkFrench(input: String, item: Item): Verdict {
-        val given = normalize(withoutArticle(input))
+        val given = normalize(withoutArticle(withoutNotes(input)))
         if (given.isEmpty()) return Verdict.WRONG
         val accepted = frenchForms(item)
         if (given in accepted) return Verdict.RIGHT

@@ -81,6 +81,7 @@ object Variants {
 
     /** Les débuts de verbe : mo- (ça va se faire), ni- / mi- (c'est fait), mag- / nag- / pag-. */
     private val prefixes = listOf(listOf("mo", "ni", "mi"), listOf("mag", "nag", "pag"))
+    private val synonyms = setOf("ni", "mi")
 
     /** Les formes courtes : jamais en début de phrase (« Mo istorya ka… » n'est pas « vous »). */
     private val short = setOf("ko", "ka", "ta", "mi", "mo", "diri", "dira")
@@ -115,7 +116,8 @@ object Variants {
             val p = group.firstOrNull { w.startsWith(it) && w.length > it.length + 2 } ?: continue
             val root = w.substring(p.length)
             for (q in group) {
-                if (q == p) continue
+                // ni- et mi- disent la même chose : ce n'est pas un piège.
+                if (q == p || (p in synonyms && q in synonyms)) continue
                 // Seulement un vrai mot (nindot ne devient pas « mondot »).
                 if (content.gloss(q + root) != null) out.add(q + root)
             }
@@ -127,6 +129,8 @@ object Variants {
     /** Toutes les phrases à un seul mot de différence avec [item] (pas ses autres réponses acceptées). */
     fun all(content: Content, item: Item): List<Variant> {
         val accepted = (listOf(item.ceb) + item.alts).map { Answers.normalize(it) }.toSet()
+        // Une phrase fabriquée connaît déjà ses pièges.
+        if (item is Built) return item.variants.filter { Answers.normalize(it.text) !in accepted }
         val out = mutableListOf<Variant>()
         val words = item.ceb.split(Regex("\\s+")).filter { it.isNotEmpty() }
         val cores = words.map { Content.cleanToken(it) }
@@ -175,6 +179,10 @@ object Variants {
             val index = Content.tokenize(item.gapBefore ?: "").size
             for (o in item.gapOptions!!.drop(1)) for (w in Content.tokenize(o)) {
                 if (Answers.normalize(w) !in inSentence) out.add(index to w)
+            }
+        } else if (item is Built) {
+            for (v in item.variants) for (w in Content.tokenize(v.to)) {
+                if (Answers.normalize(w) !in inSentence) out.add(v.index to w)
             }
         }
         for (i in tokens.indices) for (w in swaps(content, tokens, i)) out.add(i to w)

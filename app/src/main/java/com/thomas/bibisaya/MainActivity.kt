@@ -104,10 +104,11 @@ class MainActivity : Activity() {
             "SETTINGS" -> startActivity(Intent(this, SettingsActivity::class.java))
             "NOTIF" -> Notify.show(this, Slot.SOIR)
             "LESSON_TAB" -> openLesson("c7")
-            "LESSON_C1" -> openLesson("c1")
             "SHEET_QUESTIONS" -> openSheet("questions")
             "SHEET_TABLEAU" -> openSheet("tableau")
             "STOP_FUTURE" -> openLesson(Data.demoFutureStop(content, store.progress()).key)
+            // « LESSON_C6 » : la leçon 6, avec la carte de sa ronde.
+            in content.lessons.map { "LESSON_C${it.number}" } -> openLesson(step.removePrefix("LESSON_").lowercase())
             else -> startActivity(
                 Intent(this, SessionActivity::class.java)
                     .putExtra(SessionActivity.EXTRA_DEMO_STEP, step)
@@ -557,7 +558,7 @@ class MainActivity : Activity() {
             )
         )
         h.addView(top, lp())
-        h.addView(text("Toutes sont ouvertes : tu peux lire en avance.", 14f, 600, line = 1.2f))
+        h.addView(text("Toutes sont ouvertes : tu peux lire en avance. Chacune a sa ronde.", 14f, 600, line = 1.2f))
 
         val body = vbox(10).apply { pad(20, 14, 20, 20) }
         body.addView(label("LES ${lessons.size} LEÇONS DE GRAMMAIRE"))
@@ -568,8 +569,7 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER
                 box(C.NAVY, 10)
             }
-            val tag = if (stop.lesson?.ronde != null) "RONDE" else null
-            list.addView(lessonRow(badge, stop.title, stop.preview, isSeen(stop.key), tag) { openLesson(stop.key) }, lp())
+            list.addView(lessonRow(badge, stop.title, stop.preview, isSeen(stop.key)) { openLesson(stop.key) }, lp())
         }
         body.addView(list, lp())
         if (content.sheets.isNotEmpty()) {
@@ -599,11 +599,8 @@ class MainActivity : Activity() {
         box(C.WHITE, 18, C.NAVY, 3)
     }
 
-    /**
-     * Une ligne de l'onglet Leçons : la pastille, le titre et ses mots, puis ✓ (déjà vue) ou une flèche.
-     * [tag] : une petite étiquette après le titre (« RONDE » pour les leçons qui ont la ronde des personnes).
-     */
-    private fun lessonRow(badge: View, title: String, sub: String, seen: Boolean, tag: String? = null, open: () -> Unit): View {
+    /** Une ligne de l'onglet Leçons : la pastille, le titre et ses mots, puis ✓ (déjà vue) ou une flèche. */
+    private fun lessonRow(badge: View, title: String, sub: String, seen: Boolean, open: () -> Unit): View {
         val row = hbox(12).apply {
             pad(12, 8, 12, 8)
             minimumHeight = dp(56)
@@ -613,15 +610,7 @@ class MainActivity : Activity() {
         }
         row.addView(badge, LinearLayout.LayoutParams(dp(34), dp(34)))
         val words = vbox()
-        val top = hbox(8)
-        top.addView(text(title, 17f, 800, line = 1.1f))
-        if (tag != null) {
-            top.addView(text(tag, 11f, 800, spacing = 0.08f).apply {
-                pad(8, 2, 8, 2)
-                box(C.YELLOW, 999, C.NAVY, 2)
-            })
-        }
-        words.addView(top, lp())
+        words.addView(text(title, 17f, 800, line = 1.1f), lp())
         if (sub.isNotEmpty()) words.addView(text(sub, 14f, 500, line = 1.15f))
         row.addView(words, lp(0, WRAP, 1f))
         if (seen) row.addIcon(R.drawable.ic_check_circle, 24, C.GREEN) else row.addIcon(R.drawable.ic_chevron, 20, C.NAVY)

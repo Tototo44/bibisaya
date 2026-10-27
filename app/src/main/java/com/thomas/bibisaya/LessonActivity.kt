@@ -9,12 +9,14 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import com.thomas.bibisaya.engine.Content
+import com.thomas.bibisaya.engine.Fabrique
 import com.thomas.bibisaya.engine.Item
 import com.thomas.bibisaya.engine.Line
 import com.thomas.bibisaya.engine.Planner
 import com.thomas.bibisaya.engine.Progress
 import com.thomas.bibisaya.engine.Sheet
 import com.thomas.bibisaya.engine.Stop
+import com.thomas.bibisaya.engine.Theme
 
 /**
  * Une leçon de grammaire ou une fiche, à lire quand on veut (depuis l'onglet Leçons ou la route).
@@ -92,7 +94,7 @@ class LessonActivity : Activity() {
                 val practice = vbox(8)
                 practice.addView(practiceButton("S'ENTRAÎNER SUR CETTE LEÇON", stop), lp())
                 practice.addView(note(stop, pr), lp())
-                if (stop.lesson.ronde != null) practice.addView(rondeCard(stop.key), lp().apply { topMargin = dp(8) })
+                Fabrique.theme(stop)?.let { practice.addView(rondeCard(stop, it), lp().apply { topMargin = dp(8) }) }
                 body.addView(practice, lp().apply { topMargin = dp(4) })
             }
             stop != null -> {
@@ -191,18 +193,18 @@ class LessonActivity : Activity() {
         return row
     }
 
-    /** La carte jaune de la ronde des personnes (leçons 1 et 4). */
-    private fun rondeCard(key: String): View {
+    /** La carte jaune de la ronde de la leçon : son dessin (ou deux de ses petits mots), son titre, ce qui change. */
+    private fun rondeCard(stop: Stop, theme: Theme): View {
         val card = hbox(12).apply {
             pad(14, 12, 14, 12)
             box(C.YELLOW, 18, C.NAVY, 3, C.NAVY, 4)
-            contentDescription = "La ronde des personnes"
-            onTap { startActivity(Intent(this@LessonActivity, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_RONDE, key)) }
+            contentDescription = theme.title.lowercase().capitalized()
+            onTap { startActivity(Intent(this@LessonActivity, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_RONDE, stop.key)) }
         }
-        card.addView(PeopleView(this, null, labels = false))
+        card.addView(rondeIcon(theme))
         val words = vbox(2)
-        words.addView(text("LA RONDE DES PERSONNES", 16f, 800, line = 1.1f))
-        words.addView(text("2 tours de 7 questions : la personne change à chaque fois", 14f, 600, line = 1.2f))
+        words.addView(text(theme.title, 16f, 800, line = 1.1f))
+        words.addView(text(theme.subtitle, 14f, 600, line = 1.2f))
         card.addView(words, lp(0, WRAP, 1f))
         card.addIcon(R.drawable.ic_chevron, 20, C.NAVY)
         return card

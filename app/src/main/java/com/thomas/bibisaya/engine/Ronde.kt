@@ -3,7 +3,7 @@ package com.thomas.bibisaya.engine
 import kotlin.random.Random
 
 /**
- * Les 7 personnes de la ronde, avec leurs formes : ako · ko (leçon 1), akong · nako (leçon 4).
+ * Les 7 personnes, avec leurs formes : ako · ko (leçon 1), akong · nako (leçon 4), kanako (leçon 9).
  * [subject] : la forme longue après le mot. Pour « tu », c'est ka (« Kusgan ka ») : ikaw ne se met qu'en début de phrase.
  */
 enum class Person(
@@ -14,50 +14,54 @@ enum class Person(
     val after: String,
     /** La forme courte de [after] qu'on entend aussi (« balay ko »), ou null. */
     val afterShort: String?,
-    /** « nous (sans toi) » (leçon 1), « à nous (sans toi) » (leçon 4). */
+    /** Après un verbe (leçon 9) : kanako, kanimo… */
+    val oblique: String,
+    /** L'autre façon de le dire : sa ako, sa imo… */
+    val saForm: String,
+    /** « nous (sans toi) » (leçon 1), « à nous (sans toi) » (leçon 4), « moi », « toi »… (leçon 9). */
     val who: String,
     val whose: String,
+    val stressed: String,
     /** Pour le dessin : moi, toi, et combien d'autres. */
     val me: Boolean,
     val you: Boolean,
     val others: Int,
 ) {
-    ME("ako", "ako", "ko", "akong", "nako", "ko", "je", "à moi", true, false, 0),
-    YOU("ikaw", "ka", "ka", "imong", "nimo", "mo", "tu", "à toi", false, true, 0),
-    HE("siya", "siya", "siya", "iyang", "niya", null, "il, elle", "à lui, à elle", false, false, 1),
-    WE_IN("kita", "kita", "ta", "atong", "nato", "ta", "nous (avec toi)", "à nous (avec toi)", true, true, 0),
-    WE_EX("kami", "kami", "mi", "among", "namo", null, "nous (sans toi)", "à nous (sans toi)", true, false, 1),
-    YOU_PL("kamo", "kamo", "mo", "inyong", "ninyo", null, "vous", "à vous", false, true, 1),
-    THEY("sila", "sila", "sila", "ilang", "nila", null, "ils, elles", "à eux, à elles", false, false, 2),
+    ME("ako", "ako", "ko", "akong", "nako", "ko", "kanako", "sa ako", "je", "à moi", "moi", true, false, 0),
+    YOU("ikaw", "ka", "ka", "imong", "nimo", "mo", "kanimo", "sa imo", "tu", "à toi", "toi", false, true, 0),
+    HE("siya", "siya", "siya", "iyang", "niya", null, "kaniya", "sa iya", "il, elle", "à lui, à elle", "lui, elle", false, false, 1),
+    WE_IN("kita", "kita", "ta", "atong", "nato", "ta", "kanato", "sa ato", "nous (avec toi)", "à nous (avec toi)", "nous (avec toi)", true, true, 0),
+    WE_EX("kami", "kami", "mi", "among", "namo", null, "kanamo", "sa amo", "nous (sans toi)", "à nous (sans toi)", "nous (sans toi)", true, false, 1),
+    YOU_PL("kamo", "kamo", "mo", "inyong", "ninyo", null, "kaninyo", "sa inyo", "vous", "à vous", "vous", false, true, 1),
+    THEY("sila", "sila", "sila", "ilang", "nila", null, "kanila", "sa ila", "ils, elles", "à eux, à elles", "eux, elles", false, false, 2);
+
+    val plural get() = this == WE_IN || this == WE_EX || this == YOU_PL || this == THEY
+
+    /** La même personne en français : de 0 (je) à 5 (ils). */
+    val fr: Int
+        get() = when (this) {
+            ME -> 0
+            YOU -> 1
+            HE -> 2
+            WE_IN, WE_EX -> 3
+            YOU_PL -> 4
+            THEY -> 5
+        }
+
+    /** Le « nous » du cebuano, précisé en français : « (toi et moi) » ou « (pas toi) ». */
+    val weNote: String
+        get() = when (this) {
+            WE_IN -> " (toi et moi)"
+            WE_EX -> " (pas toi)"
+            else -> ""
+        }
+
+    /** Il ou elle, ils ou elles : la seule personne où l'on choisit entre homme et femme. */
+    val gendered get() = this == HE || this == THEY
 }
 
-/** La ronde de la leçon 1 (ako, ka…) ou de la leçon 4 (akong, nako…). */
-enum class RondeKind(
-    /** Ce que demande chaque tour. */
-    val rounds: Pair<String, String>,
-    /** Les colonnes du tableau de fin. */
-    val columns: Pair<String, String>,
-    val question: String,
-) {
-    PRONOUNS("formes longues" to "formes courtes", "LONGUE" to "COURTE", "QUI ?"),
-    POSSESSIVES("avant le mot" to "après le mot", "AVANT" to "APRÈS", "À QUI ?");
-
-    /** La bonne réponse : au 1er tour la forme longue (ou le mot avant), au 2e la forme courte (ou le mot après). */
-    fun form(p: Person, second: Boolean): String = when (this) {
-        PRONOUNS -> if (second) p.short else p.subject
-        POSSESSIVES -> if (second) p.after else p.before
-    }
-
-    fun label(p: Person): String = if (this == PRONOUNS) p.who else p.whose
-
-    fun round(second: Boolean): String = if (second) rounds.second else rounds.first
-
-    /** Toutes les formes d'une personne, pour reconnaître une réponse. */
-    fun forms(p: Person): List<String> = when (this) {
-        PRONOUNS -> listOf(p.subject, p.short, p.long)
-        POSSESSIVES -> listOfNotNull(p.before, p.after, p.afterShort)
-    }
-}
+/** Les mots des rondes des leçons 1 et 4, lus dans contenu.txt : des adjectifs (leçon 1) ou des noms (leçon 4). */
+enum class RondeKind { PRONOUNS, POSSESSIVES }
 
 /**
  * Un mot de la ronde : un adjectif avec ses 4 formes en français (fort, forte, forts, fortes),
@@ -65,83 +69,42 @@ enum class RondeKind(
  */
 class RondeWord(val ceb: String, val fr: List<String>)
 
-/** Une question de la ronde : une phrase à trou, pour une personne. */
+/**
+ * Une question de la ronde : une phrase à trou, pour une ligne (une personne, une distance, un moment…).
+ * [scene] : le mot de la phrase (le même pendant tout un passage). Au 1er tour, on touche le bon mot parmi
+ * [options] ; au 2e, on l'écrit.
+ */
 class RondeQuestion(
     val stop: Stop,
-    val kind: RondeKind,
-    val word: RondeWord,
-    val person: Person,
-    /** 2e tour : la forme courte (leçon 1), le mot après la chose (leçon 4). */
+    val theme: Theme,
+    val row: Row,
+    val frase: Frase,
     val second: Boolean,
-    /** Toucher le bon mot parmi [options], sinon l'écrire. */
     val tap: Boolean,
     val options: List<String>,
-    /** « Elle est forte » plutôt que « Il est fort » (pour il, elle et ils, elles). */
-    val feminine: Boolean,
+    val scene: String,
 ) {
-    val answer: String get() = kind.form(person, second)
+    val answer get() = frase.answer
+    val before get() = frase.before
+    val after get() = frase.after
+    val sentence get() = frase.sentence
+    val french get() = frase.french
+    val person get() = row.person
 
-    /** Le texte avant le trou : « Kusgan », « Kini ang », « Kini ang balay ». */
-    val before: String
-        get() = when {
-            kind == RondeKind.PRONOUNS -> word.ceb.replaceFirstChar { it.uppercase() }
-            second -> "Kini ang ${word.ceb}"
-            else -> "Kini ang"
-        }
+    /** Ce que montre le bandeau : la ligne, ou ce que la phrase demande (« RELIE : dako + nga »). */
+    val band get() = frase.band ?: row
+    val question get() = frase.bandQuestion ?: theme.question
 
-    /** Le texte après le trou : « balay » (leçon 4, 1er tour), sinon rien. */
-    val after: String get() = if (kind == RondeKind.POSSESSIVES && !second) word.ceb else ""
-
-    /** La phrase complète : « Kusgan kami. » */
-    val sentence: String get() = sentenceWith(answer)
-
-    fun sentenceWith(form: String): String = listOf(before, form, after).filter { it.isNotEmpty() }.joinToString(" ") + "."
-
-    /** « Nous sommes forts (pas toi). », « Voici notre maison (pas à toi). » */
-    val french: String
-        get() = if (kind == RondeKind.PRONOUNS) frenchPronoun() else frenchPossessive()
-
-    private fun frenchPronoun(): String {
-        val (m, f, mp, fp) = word.fr
-        return when (person) {
-            Person.ME -> "Je suis $m."
-            Person.YOU -> "Tu es $m."
-            Person.HE -> if (feminine) "Elle est $f." else "Il est $m."
-            Person.WE_IN -> "Nous sommes $mp (toi et moi)."
-            Person.WE_EX -> "Nous sommes $mp (pas toi)."
-            Person.YOU_PL -> "Vous êtes $mp."
-            Person.THEY -> if (feminine) "Elles sont $fp." else "Ils sont $mp."
-        }
-    }
-
-    private fun frenchPossessive(): String {
-        val full = word.fr.first()
-        val noun = full.substringAfter("'").removePrefix("le ").removePrefix("la ")
-        // « ma maison », mais « mon école » : devant une voyelle, toujours mon, ton, son.
-        val feminine = full.startsWith("la ")
-        val mine = when (person) {
-            Person.ME -> if (feminine) "ma" else "mon"
-            Person.YOU -> if (feminine) "ta" else "ton"
-            Person.HE -> if (feminine) "sa" else "son"
-            Person.WE_IN, Person.WE_EX -> "notre"
-            Person.YOU_PL -> "votre"
-            Person.THEY -> "leur"
-        }
-        val note = when (person) {
-            Person.WE_IN -> " (à toi et moi)"
-            Person.WE_EX -> " (pas à toi)"
-            else -> ""
-        }
-        return "Voici $mine $noun$note."
-    }
+    fun sentenceWith(form: String) = frase.sentenceWith(form)
 }
 
 /** Le verdict d'une réponse de la ronde, avec une explication quand il y en a une. */
 class RondeCheck(val correct: Boolean, val note: String?)
 
 /**
- * « La ronde des personnes » (leçons 1 et 4) : une phrase, et la personne change à chaque question.
- * Un tour = les 7 personnes dans le désordre.
+ * La ronde d'une leçon : une phrase, et une seule partie change à chaque question (la personne, la distance,
+ * le moment…). Un tour = chaque ligne dans le désordre (deux fois quand il n'y en a que 3 ou 4).
+ * Au 1er tour on touche le bon mot, au 2e on l'écrit.
  */
 object Ronde {
     /** Une petite ronde le soir au plus tous les 3 jours (une leçon après l'autre). */
@@ -152,43 +115,49 @@ object Ronde {
     /** Le mot de la leçon 1 : pour « tu », après le mot, c'est ka. */
     const val YOU_NOTE = "Après le mot, « tu » se dit toujours **ka**. **Ikaw** se met au début de la phrase."
 
-    /** Le mot du vocabulaire qui correspond à un mot de la ronde. */
-    fun vocab(content: Content, word: RondeWord): Item? =
-        content.itemsWithForm(Answers.normalize(word.ceb)).firstOrNull { it.line == Line.VOCAB }
-
-    /** Les mots de la ronde, ceux déjà vus d'abord (chaque fois dans un autre ordre). */
-    fun words(content: Content, progress: Progress, stop: Stop, random: Random): List<RondeWord> {
-        val all = stop.lesson?.rondeWords ?: emptyList()
-        val (seen, other) = all.shuffled(random).partition { w -> vocab(content, w)?.let { progress.isIntroduced(it) } == true }
-        return seen + other
+    /** Une série de phrases sur une même scène (quelques essais : certaines scènes ne vont pas avec toutes les lignes). */
+    private fun pass(theme: Theme, w: Words, plan: List<Pair<Row, Boolean>>): Pass? {
+        repeat(20) { theme.pass(w, plan)?.let { return it } }
+        return null
     }
 
-    /** La ronde complète : 2 tours de 7 questions, chacun avec un autre mot et sa petite présentation. */
+    /** Les choix gardent le même ordre pendant tout un tour : on retrouve vite chaque mot. */
+    private class Orders(val random: Random) {
+        private val orders = mutableMapOf<Set<String>, List<String>>()
+
+        fun of(f: Frase): List<String> = orders.getOrPut(f.choices.map { Answers.normalize(it) }.toSet()) { f.choices.shuffled(random) }
+    }
+
+    /** La ronde complète : 2 tours, chacun avec sa petite présentation et une autre scène. */
     fun full(content: Content, progress: Progress, stop: Stop, today: Long, random: Random = Random.Default): Session {
-        val kind = stop.lesson!!.ronde!!
-        val words = words(content, progress, stop, random)
+        val theme = Fabrique.theme(stop)!!
+        val w = Words(content, progress, random)
         val steps = mutableListOf<Step>()
         for (second in listOf(false, true)) {
-            val word = words[if (second) 1 % words.size else 0]
-            // Au 1er tour, les 7 mots restent affichés, dans le même ordre pour tout le tour.
-            val options = if (second) emptyList() else Person.values().map { kind.form(it, false) }.shuffled(random)
             steps.add(RondeIntroStep(stop, second))
-            for (p in Person.values().toList().shuffled(random)) {
-                steps.add(RondeStep(RondeQuestion(stop, kind, word, p, second, !second, options, random.nextBoolean())))
+            val orders = Orders(random)
+            repeat(theme.passes) {
+                val plan = theme.rows.shuffled(random).map { it to second }
+                val pass = pass(theme, w, plan) ?: return@repeat
+                for ((row, f) in pass.frases) {
+                    val options = if (second) emptyList() else orders.of(f)
+                    steps.add(RondeStep(RondeQuestion(stop, theme, row, f, second, !second, options, pass.scene)))
+                }
             }
         }
         return Session(content, progress, null, stop.line, today, steps, random, Mode.RONDE, stop)
     }
 
-    /** La petite ronde du soir : 3 questions sur un mot, les personnes souvent ratées d'abord. */
+    /** La petite ronde du soir : 3 questions sur une scène, les lignes souvent ratées d'abord. */
     fun mini(content: Content, progress: Progress, stop: Stop, random: Random): List<RondeStep> {
-        val kind = stop.lesson?.ronde ?: return emptyList()
-        val word = words(content, progress, stop, random).firstOrNull() ?: return emptyList()
-        val persons = Person.values().toList().shuffled(random).sortedByDescending { progress.misses(stop, it) }.take(MINI)
-        val options = Person.values().map { kind.form(it, false) }.shuffled(random)
-        return persons.mapIndexed { i, p ->
-            val write = i == persons.size - 1
-            RondeStep(RondeQuestion(stop, kind, word, p, write, !write, if (write) emptyList() else options, random.nextBoolean()))
+        val theme = Fabrique.theme(stop) ?: return emptyList()
+        val rows = theme.rows.shuffled(random).sortedByDescending { progress.misses(stop, it.key) }.take(MINI)
+        val plan = rows.mapIndexed { i, r -> r to (i == rows.size - 1) }
+        val pass = pass(theme, Words(content, progress, random), plan) ?: return emptyList()
+        val orders = Orders(random)
+        return pass.frases.mapIndexed { i, (row, f) ->
+            val write = plan[i].second
+            RondeStep(RondeQuestion(stop, theme, row, f, write, !write, if (write) emptyList() else orders.of(f), pass.scene))
         }
     }
 
@@ -197,60 +166,37 @@ object Ronde {
      * Null s'il n'y en a pas encore, ou s'il y a eu une ronde ces 3 derniers jours.
      */
     fun eveningLesson(content: Content, progress: Progress, today: Long): Stop? {
-        val lessons = content.lessons.filter { it.lesson?.ronde != null && (it.key in progress.lessonsSeen || it.key in progress.rondeDays) }
+        val lessons = content.lessons.filter { Fabrique.theme(it) != null && (it.key in progress.lessonsSeen || it.key in progress.rondeDays) }
         if (lessons.isEmpty()) return null
         val last = progress.rondeDays.values.maxOrNull()
         if (last != null && today - last < EVENING_GAP) return null
         return lessons.minByOrNull { progress.rondeDays[it.key] ?: Long.MIN_VALUE }
     }
 
-    /** Le mot tapé : seul, ou au milieu de la phrase recopiée (« Kusgan ko »). */
+    /** Ce qui a été tapé à la place du trou : le mot seul, ou la phrase recopiée (« Kusgan ko »). */
     private fun typedWord(q: RondeQuestion, given: String): String {
-        val words = Content.tokenize(given).map { Answers.normalize(it) }.filter { it.isNotEmpty() }
-        if (words.size <= 1) return words.firstOrNull() ?: ""
-        val left = words.toMutableList()
-        for (w in Content.tokenize("${q.before} ${q.after}")) left.remove(Answers.normalize(w))
-        return if (left.size == 1) left.single() else words.joinToString("")
+        var words = Content.tokenize(given).map { Answers.normalize(it) }.filter { it.isNotEmpty() }
+        val before = Content.tokenize(q.before).map { Answers.normalize(it) }
+        val after = Content.tokenize(q.after).map { Answers.normalize(it) }
+        if (words.size > before.size && words.take(before.size) == before) words = words.drop(before.size)
+        if (words.size > after.size && words.takeLast(after.size) == after) words = words.dropLast(after.size)
+        return words.joinToString("")
     }
 
     /**
-     * Vérifie une réponse. L'autre forme de la bonne personne est juste aussi (ako pour ko, balay ko pour balay nako),
-     * avec un petit rappel. Pas de faute de frappe permise : ces mots sont trop courts.
+     * Vérifie une réponse. Une autre forme juste (ako pour ko, mikaon pour nikaon) est acceptée avec un petit rappel ;
+     * les erreurs prévues ont leur explication. Pas de faute de frappe permise : ces mots sont trop courts.
      */
     fun check(q: RondeQuestion, given: String): RondeCheck {
+        val f = q.frase
+        // La phrase recopiée en entier (aussi quand le lien se colle au mot : « Dakong balay kini. »).
+        val whole = Answers.normalize(given)
+        if (whole == Answers.normalize(f.sentence)) return RondeCheck(true, f.rightNote)
+        for ((form, note) in f.accepted) if (whole == Answers.normalize(f.sentenceWith(form))) return RondeCheck(true, note)
         val g = typedWord(q, given)
-        val kind = q.kind
-        val p = q.person
-        val answer = q.answer
-        fun same(form: String?) = form != null && g == Answers.normalize(form)
-        if (same(answer)) return RondeCheck(true, if (kind == RondeKind.PRONOUNS && p == Person.YOU && !q.second) YOU_NOTE else null)
-        if (kind == RondeKind.PRONOUNS && kind.forms(p).any { same(it) }) {
-            val note = if (p == Person.YOU) "Après le mot, on dit **ka** : ${q.sentence} **Ikaw** se met au début de la phrase."
-            else "La forme ${if (q.second) "courte" else "longue"}, c'est **$answer** : ${q.sentence}"
-            return RondeCheck(true, note)
-        }
-        if (kind == RondeKind.POSSESSIVES && q.second && same(p.afterShort)) {
-            return RondeCheck(true, "On dit aussi **${p.after}** : ${q.sentence}")
-        }
-        val w = q.word.ceb
-        if (kind == RondeKind.POSSESSIVES && q.second && same(p.before)) {
-            return RondeCheck(false, "**${p.before}** se met avant la chose : ${p.before} $w. Après, c'est **${p.after}** : $w ${p.after}.")
-        }
-        if (kind == RondeKind.POSSESSIVES && !q.second && (same(p.after) || same(p.afterShort))) {
-            return RondeCheck(false, "**${p.after}** se met après la chose : $w ${p.after}. Avant, c'est **${p.before}** : ${p.before} $w.")
-        }
-        for (o in Person.values()) {
-            val form = kind.forms(o).firstOrNull { same(it) } ?: continue
-            if (o == p) continue
-            return RondeCheck(false, "**$form**, c'est « ${kind.label(o)} ». Pour « ${kind.label(p)} », c'est **$answer**.")
-        }
-        // Un mot de l'autre leçon (nako pour ko…).
-        val other = RondeKind.values().first { it != kind }
-        for (o in Person.values()) {
-            val form = other.forms(o).firstOrNull { same(it) } ?: continue
-            val lesson = if (other == RondeKind.PRONOUNS) "la leçon 1" else "la leçon 4"
-            return RondeCheck(false, "**$form**, c'est « ${other.label(o)} » ($lesson). Ici, c'est **$answer**.")
-        }
-        return RondeCheck(false, "La bonne réponse est **$answer**.")
+        if (g == Answers.normalize(f.answer)) return RondeCheck(true, f.rightNote)
+        for ((form, note) in f.accepted) if (g == Answers.normalize(form)) return RondeCheck(true, note)
+        for ((form, note) in f.wrong) if (g == Answers.normalize(form)) return RondeCheck(false, note)
+        return RondeCheck(false, "La bonne réponse est **${f.answer}**." + if (f.glued) " ${f.sentence}" else "")
     }
 }

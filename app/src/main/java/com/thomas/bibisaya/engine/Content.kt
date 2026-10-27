@@ -45,8 +45,8 @@ class Sheet(
     val tips: List<SheetTip>,
 )
 
-/** Un mot ou une phrase à apprendre. */
-class Item(
+/** Un mot ou une phrase à apprendre (ou une phrase fabriquée par l'appli, voir [Built]). */
+open class Item(
     val id: String,
     val line: Line,
     val stop: Int,
@@ -108,6 +108,9 @@ class Content(
                 tokenize(sentence).drop(1).filter { it.first().isUpperCase() }.forEach { add(Answers.normalize(it)) }
             }
         }
+        // Les prénoms et les lieux des phrases fabriquées.
+        Lexique.prenoms.forEach { add(Answers.normalize(it.name)) }
+        Lexique.lieux.filter { it.ceb.first().isUpperCase() }.forEach { add(Answers.normalize(it.ceb)) }
     }
 
     private val wordGloss: Map<String, String> = buildMap {
@@ -137,10 +140,10 @@ class Content(
 
     fun items(line: Line): List<Item> = stops(line).flatMap { it.items }
 
-    /** Le sens d'un mot touché dans une phrase. */
+    /** Le sens d'un mot touché dans une phrase (aussi les verbes conjugués et les prénoms des phrases fabriquées). */
     fun gloss(token: String): String? {
         val key = cleanToken(token).lowercase()
-        return glosses[key] ?: wordGloss[key]
+        return glosses[key] ?: wordGloss[key] ?: Fabrique.gloss(key)
     }
 
     /** Un mot que l'appli connaît (dans une phrase, une glose ou le vocabulaire). */

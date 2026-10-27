@@ -128,6 +128,37 @@ screens() {
   shot "${p}61-ronde-fin" 5 --ez demo true --es demoStep RONDE_END
   down "${p}61-ronde-fin-bas"
   shot "${p}62-ronde-du-soir" 5 --ez demo true --es demoStep RONDE_EVENING
+
+  # Les rondes des autres leçons (distances, moments, petits mots…)
+  shot "${p}63-ronde-l2" 4 --ez demo true --es demoStep RONDE_L2
+  shot "${p}64-lecon-3-ronde" 4 --ez demo true --es demoStep LESSON_C3
+  down "${p}64-lecon-3-ronde-bas"
+  down "${p}64-lecon-3-ronde-fin"
+  shot "${p}65-ronde-l3-presentation" 4 --ez demo true --es demoStep RONDE_L3_INTRO
+  down "${p}65-ronde-l3-presentation-bas"
+  shot "${p}66-ronde-l3-juste" 5 --ez demo true --es demoStep RONDE_L3 --es demoAnswer right
+  shot "${p}67-ronde-l3-fin" 5 --ez demo true --es demoStep RONDE_L3_END
+  down "${p}67-ronde-l3-fin-bas"
+  shot "${p}68-ronde-l5-faux" 5 --ez demo true --es demoStep RONDE_L5 --es demoAnswer wrong
+  shot "${p}69-ronde-l6-presentation" 4 --ez demo true --es demoStep RONDE_L6_INTRO
+  down "${p}69-ronde-l6-presentation-bas"
+  shot "${p}70-ronde-l6-ecrire-faux" 6 --ez demo true --es demoStep RONDE_L6_WRITE --es demoAnswer wrong
+  shot "${p}71-ronde-l7" 4 --ez demo true --es demoStep RONDE_L7
+  shot "${p}72-ronde-l8-juste" 5 --ez demo true --es demoStep RONDE_L8 --es demoAnswer right
+  shot "${p}73-ronde-l9" 4 --ez demo true --es demoStep RONDE_L9
+  shot "${p}74-ronde-l10-faux" 5 --ez demo true --es demoStep RONDE_L10 --es demoAnswer wrong
+  shot "${p}75-ronde-l10-juste" 5 --ez demo true --es demoStep RONDE_L10 --es demoAnswer right
+  shot "${p}76-ronde-l10-ecrire" 5 --ez demo true --es demoStep RONDE_L10_WRITE
+  shot "${p}77-ronde-l11" 4 --ez demo true --es demoStep RONDE_L11
+  shot "${p}78-ronde-l11-fin" 5 --ez demo true --es demoStep RONDE_L11_END
+  down "${p}78-ronde-l11-fin-bas"
+  shot "${p}79-lecon-6-ronde" 4 --ez demo true --es demoStep LESSON_C6
+  down "${p}79-lecon-6-ronde-bas"
+  down "${p}79-lecon-6-ronde-fin"
+
+  # Les phrases fabriquées par l'appli, dans une séance
+  shot "${p}80-phrase-fabriquee-trou" 4 --ez demo true --es demoStep BUILT_GAP
+  shot "${p}81-phrase-fabriquee-faux" 5 --ez demo true --es demoStep BUILT_CHOOSE --es demoAnswer wrong
 }
 
 screens ""

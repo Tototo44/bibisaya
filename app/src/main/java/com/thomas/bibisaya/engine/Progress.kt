@@ -68,7 +68,7 @@ class Progress {
     /** Les leçons et fiches ouvertes depuis l'onglet Leçons (elles restent montrées dans les séances). */
     val lessonsRead = mutableSetOf<String>()
     val daySlots = mutableMapOf<Long, MutableSet<Slot>>()
-    /** La ronde des personnes : les erreurs par personne (« c1:WE_EX » -> 2) et le dernier jour de ronde de chaque leçon. */
+    /** Les rondes : les erreurs par ligne (« c1:WE_EX » -> 2, « c3:FAR » -> 1) et le dernier jour de ronde de chaque leçon. */
     val rondeMisses = mutableMapOf<String, Int>()
     val rondeDays = mutableMapOf<String, Long>()
 
@@ -108,16 +108,17 @@ class Progress {
         return Change(before, s.level, s.dueDay - today)
     }
 
-    // ---------- La ronde des personnes ----------
+    // ---------- Les rondes ----------
 
-    fun misses(stop: Stop, person: Person) = rondeMisses["${stop.key}:${person.name}"] ?: 0
+    /** Les erreurs sur une ligne de la ronde ([row] : une personne comme « WE_EX », une distance, un moment…). */
+    fun misses(stop: Stop, row: String) = rondeMisses["${stop.key}:$row"] ?: 0
 
     /**
-     * Une personne ratée revient plus souvent dans les petites rondes du soir. Il faut la réussir 2 fois
+     * Une ligne ratée revient plus souvent dans les petites rondes du soir. Il faut la réussir 2 fois
      * pour effacer une erreur : réussie juste après, au 2e tour, elle revient quand même.
      */
-    fun rondeAnswer(stop: Stop, person: Person, correct: Boolean, today: Long) {
-        val key = "${stop.key}:${person.name}"
+    fun rondeAnswer(stop: Stop, row: String, correct: Boolean, today: Long) {
+        val key = "${stop.key}:$row"
         val n = (rondeMisses[key] ?: 0) + if (correct) -1 else 2
         if (n <= 0) rondeMisses.remove(key) else rondeMisses[key] = n.coerceAtMost(MAX_MISSES)
         rondeDays[stop.key] = today
