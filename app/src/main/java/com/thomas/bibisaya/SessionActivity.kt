@@ -175,7 +175,7 @@ class SessionActivity : Activity() {
         ) {}
     }
 
-    /** Retour à l'écran d'avant : l'accueil, ou la leçon pour un entraînement. */
+    /** Retour à l'écran d'avant : l'accueil, ou la leçon (l'arrêt) pour un entraînement. */
     private fun goHome() {
         Data.running = null
         if (isTaskRoot) startActivity(Intent(this, MainActivity::class.java))
@@ -1751,7 +1751,7 @@ class SessionActivity : Activity() {
         Gloss.dismiss()
         val total = s.gradedTotal
         val kicker = when (s.mode) {
-            Mode.LESSON -> "LEÇON ${s.stop?.number ?: ""} · ENTRAÎNEMENT"
+            Mode.LESSON -> practiceWhere(s.stop) + if (s.newItems.isNotEmpty()) "DÉCOUVERTE" else "ENTRAÎNEMENT"
             Mode.TRANSLATE_WORDS -> "TRADUCTION · ${Fr.count(total, "MOT", "MOTS")}"
             else -> "TRADUCTION · ${Fr.count(total, "PHRASE", "PHRASES")}"
         }
@@ -1769,14 +1769,28 @@ class SessionActivity : Activity() {
         }
 
         val again = when (s.mode) {
-            Mode.LESSON -> "Encore ${Fr.count(minOf(Planner.EXERCISES, s.stop?.items?.size ?: 0), "question", "questions")}"
+            Mode.LESSON -> "Encore ${Fr.count(Planner.EXERCISES, "question", "questions")}"
             Mode.TRANSLATE_WORDS -> "Encore ${Fr.count(total, "mot", "mots")}"
             else -> "Encore ${Fr.count(total, "phrase", "phrases")}"
         }
         actionFooter(
-            navyButton(if (s.mode == Mode.LESSON) "RETOUR À LA LEÇON" else "RETOUR À L'ACCUEIL", 58, 18f) { goHome() },
+            navyButton(
+                when {
+                    s.mode != Mode.LESSON -> "RETOUR À L'ACCUEIL"
+                    s.stop?.lesson != null -> "RETOUR À LA LEÇON"
+                    else -> "RETOUR À L'ARRÊT"
+                },
+                58, 18f,
+            ) { goHome() },
             outlineButton(again) { startAgain(s) },
         )
+    }
+
+    /** « LEÇON 7 · » pour un arrêt avec sa leçon, sinon « ARRÊT 5 · » (des mots ou des phrases simples). */
+    private fun practiceWhere(stop: Stop?): String = when {
+        stop == null -> ""
+        stop.lesson != null -> "LEÇON ${stop.number} · "
+        else -> "ARRÊT ${stop.number} · "
     }
 
     /** « Ces 2 phrases reviendront plus souvent dans tes séances. » */
@@ -1885,7 +1899,7 @@ class SessionActivity : Activity() {
             if (answer != null) body.postDelayed({ demoHook?.invoke(answer) }, 700)
             return
         }
-        if (kind.startsWith("TR_") || kind == "PRACTICE") {
+        if (kind.startsWith("TR_") || kind == "PRACTICE" || kind == "DISCOVER_END") {
             startPracticeDemo(kind, pr, today, random)
             if (answer != null) body.postDelayed({ demoHook?.invoke(answer) }, 700)
             return
@@ -1937,6 +1951,9 @@ class SessionActivity : Activity() {
             // La leçon la plus avancée : ses phrases sont déjà vues, on tombe sur une question.
             val stop = content.lessons.maxByOrNull { st -> st.items.count { pr.isIntroduced(it) } }!!
             Planner.buildLessonPractice(content, pr, stop, today, random)
+        } else if (kind == "DISCOVER_END") {
+            // Découvrir un arrêt de mots plus loin que le jeepney.
+            Planner.buildLessonPractice(content, pr, Data.demoFutureStop(content, pr), today, random)
         } else {
             val built = Planner.buildTranslation(content, pr, kind == "TR_WORD", today, random)!!
             val first = when (kind) {
@@ -1946,14 +1963,19 @@ class SessionActivity : Activity() {
                 else -> null
             }
             if (first != null) {
-                built.steps.removeAll { it is Exercise && it.item == first.item }
+                built.steps.removeAll { (it is Exercise && it.item == first.item) || (it is NewStep && it.item == first.item) }
                 built.steps.add(0, first)
-                while (built.steps.size > Planner.EXERCISES) built.steps.removeAt(built.steps.size - 1)
+                // Toujours 10 questions : on enlève les dernières (et la carte d'un mot nouveau enlevé).
+                while (built.gradedTotal > Planner.EXERCISES) {
+                    val last = built.steps.indexOfLast { it is Exercise }
+                    val item = (built.steps.removeAt(last) as Exercise).item
+                    built.steps.removeAll { it is NewStep && it.item == item }
+                }
             }
             built
         }
         run = Running(null, false, today, pr, session)
-        if (kind == "TR_END") {
+        if (kind == "TR_END" || kind == "DISCOVER_END") {
             var n = 0
             while (!session.finished) {
                 val step = session.current!!
@@ -2043,7 +2065,7 @@ class SessionActivity : Activity() {
         const val EXTRA_BONUS = "bonus"
         /** « WORDS » ou « PHRASES » : une traduction de 10 mots ou de 10 phrases. */
         const val EXTRA_TRANSLATE = "translate"
-        /** La clé d'un arrêt (« c7 ») : s'entraîner sur sa leçon. */
+        /** La clé d'un arrêt (« c7 », « v5 ») : s'entraîner sur sa leçon, ou découvrir ses mots avant le jeepney. */
         const val EXTRA_PRACTICE = "practice"
         /** La clé d'une leçon avec sa ronde des personnes (« c1 », « c4 »). */
         const val EXTRA_RONDE = "ronde"

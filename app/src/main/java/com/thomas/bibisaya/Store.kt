@@ -13,6 +13,7 @@ import com.thomas.bibisaya.engine.Progress
 import com.thomas.bibisaya.engine.RondeStep
 import com.thomas.bibisaya.engine.Session
 import com.thomas.bibisaya.engine.Slot
+import com.thomas.bibisaya.engine.Stop
 import com.thomas.bibisaya.engine.Times
 import java.time.LocalDate
 import java.time.LocalTime
@@ -123,6 +124,13 @@ object Data {
             }
         }
         store.save(pr)
+    }
+
+    /** Pour les captures : un arrêt de mots 2 arrêts plus loin que le jeepney (à découvrir). */
+    fun demoFutureStop(content: Content, pr: Progress): Stop {
+        val stops = content.stops(Line.VOCAB)
+        val current = pr.currentStop(content, Line.VOCAB)
+        return stops.getOrNull(stops.indexOf(current) + 2) ?: stops.last()
     }
 
     /** La ligne travaillée par une séance (null : les 3 lignes mélangées). */

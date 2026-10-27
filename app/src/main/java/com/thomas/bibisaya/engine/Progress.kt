@@ -76,6 +76,8 @@ class Progress {
     fun isIntroduced(item: Item) = item.id in items
     fun level(item: Item) = items[item.id]?.level ?: 0
     fun isKnown(item: Item) = level(item) >= KNOWN
+    /** À peu près maîtrisé : réussi au moins une fois, et pas raté depuis (niveau 2 ou plus). */
+    fun isRoughlyKnown(item: Item) = level(item) >= ROUGHLY
 
     /** La série affichée : elle tombe à zéro si hier et aujourd'hui sont vides. */
     fun currentStreak(today: Long) = if (lastActiveDay >= today - 1) streak else 0
@@ -144,15 +146,13 @@ class Progress {
         return done
     }
 
-    /** Les prochains mots à découvrir sur une ligne, sans trop s'éloigner de l'arrêt du jeepney. */
+    /**
+     * Les prochains mots à découvrir sur une ligne, dans l'ordre de la route. Ils peuvent venir des arrêts
+     * plus loin : les séances apportent toujours des nouveautés, même si l'arrêt du jeepney n'est pas fini.
+     */
     fun nextNewItems(content: Content, line: Line, max: Int): List<Item> {
         if (max <= 0) return emptyList()
-        val current = currentStop(content, line) ?: return emptyList()
-        return content.stops(line)
-            .filter { it.number <= current.number + LOOKAHEAD }
-            .flatMap { it.items }
-            .filter { !isIntroduced(it) }
-            .take(max)
+        return content.items(line).filter { !isIntroduced(it) }.take(max)
     }
 
     fun hasNewItems(content: Content, line: Line) = nextNewItems(content, line, 1).isNotEmpty()
@@ -247,8 +247,8 @@ class Progress {
 
     companion object {
         const val KNOWN = 3
+        const val ROUGHLY = 2
         const val MAX_LEVEL = 5
-        const val LOOKAHEAD = 1
         const val POINTS_ANSWER = 10
         const val POINTS_SESSION = 20
         const val POINTS_PERFECT_DAY = 50

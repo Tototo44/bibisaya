@@ -43,7 +43,7 @@ class MainActivity : Activity() {
     private lateinit var content: Content
     private lateinit var progress: Progress
     private lateinit var page: FrameLayout
-    private val navItems = mutableListOf<Pair<ImageView, TextView>>()
+    private lateinit var nav: LinearLayout
     private var tab = TAB_HOME
     private var routeLine = Line.VOCAB
     private var lexFilter = 0
@@ -65,10 +65,10 @@ class MainActivity : Activity() {
         root.addView(top, lp(MATCH, 0))
         page = FrameLayout(this)
         root.addView(page, lp(MATCH, 0, 1f))
-        val nav = buildNav()
+        nav = RouteNav()
         root.addView(nav, lp())
         setContentView(root)
-        edgeToEdge(root, top, nav, lightNavigation = false)
+        edgeToEdge(root, top, nav, lightNavigation = true)
 
         Notify.ensureChannel(this)
         askNotifications()
@@ -107,6 +107,7 @@ class MainActivity : Activity() {
             "LESSON_C1" -> openLesson("c1")
             "SHEET_QUESTIONS" -> openSheet("questions")
             "SHEET_TABLEAU" -> openSheet("tableau")
+            "STOP_FUTURE" -> openLesson(Data.demoFutureStop(content, store.progress()).key)
             else -> startActivity(
                 Intent(this, SessionActivity::class.java)
                     .putExtra(SessionActivity.EXTRA_DEMO_STEP, step)
@@ -141,43 +142,66 @@ class MainActivity : Activity() {
                 else -> home()
             }
         )
-        navItems.forEachIndexed { i, (icon, label) ->
-            val on = i == tab
-            val color = if (on) C.YELLOW else C.WHITE
-            icon.setColorFilter(color)
-            label.setTextColor(color)
-            label.typeface = Fonts.get(if (on) 800 else 600, 13f)
+        renderNav()
+    }
+
+    // ---------- La barre du bas : « La route » ----------
+
+    /** La barre du bas : les 5 onglets sont des arrêts reliés par une route, l'onglet ouvert est le gros arrêt rouge. */
+    private inner class RouteNav : LinearLayout(this@MainActivity) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = C.NAVY }
+
+        init {
+            orientation = HORIZONTAL
+            setBackgroundColor(C.WHITE)
+            setWillNotDraw(false)
+            pad(6, 3 + 6, 6, 10)
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            // Le trait bleu du haut, puis la route, du premier au dernier arrêt, derrière les ronds.
+            canvas.drawRect(0f, 0f, width.toFloat(), dpf(3), paint)
+            val y = paddingTop + dpf(NAV_SPOT / 2)
+            val w = (width - paddingLeft - paddingRight).toFloat()
+            canvas.drawRoundRect(paddingLeft + w * 0.1f, y - dpf(2), paddingLeft + w * 0.9f, y + dpf(2), dpf(2), dpf(2), paint)
         }
     }
 
-    // ---------- La barre du bas ----------
-
-    private fun buildNav(): LinearLayout {
-        val nav = hbox().apply {
-            setBackgroundColor(C.NAVY)
-            pad(8, 10, 8, 14)
-        }
-        val items = listOf(
-            R.drawable.ic_home to "Accueil",
-            R.drawable.ic_route to "Route",
-            R.drawable.ic_cap to "Leçons",
-            R.drawable.ic_book to "Lexique",
-            R.drawable.ic_medal to "Badges",
-        )
-        items.forEachIndexed { i, (res, name) ->
+    private fun renderNav() {
+        nav.removeAllViews()
+        NAV.forEachIndexed { i, (res, name) ->
+            val on = i == tab
             val cell = vbox(3).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
-                pad(0, 2, 0, 2)
                 contentDescription = name
+                isSelected = on
                 onTap { select(i) }
+                squishy()
             }
-            val icon = cell.addIcon(res, 22, C.WHITE)
-            val label = text(name, 13f, 600, C.WHITE)
-            cell.addView(label)
+            // Le rond : gros et rouge (avec son ombre) pour l'onglet ouvert, petit et blanc pour les autres.
+            val circle = FrameLayout(this).apply {
+                if (on) box(C.RED, 999, C.NAVY, 3, C.NAVY, 2) else box(C.WHITE, 999, C.NAVY, 3)
+                stateListAnimator = null
+            }
+            val iconSize = dp(if (on) 22 else 18)
+            circle.addView(icon(res, if (on) C.WHITE else C.NAVY), FrameLayout.LayoutParams(iconSize, iconSize, Gravity.CENTER))
+            val spot = FrameLayout(this)
+            val size = dp(if (on) 46 + 2 else 36)
+            spot.addView(circle, FrameLayout.LayoutParams(size, size, Gravity.CENTER).apply {
+                // L'ombre est à droite et en bas : le rond lui-même reste bien sur la route.
+                if (on) {
+                    leftMargin = dp(2)
+                    topMargin = dp(2)
+                }
+            })
+            cell.addView(spot, lp(MATCH, dp(NAV_SPOT)))
+            cell.addView(text(name, 13f, if (on) 800 else 700, if (on) C.LABEL else C.NAVY).apply {
+                gravity = Gravity.CENTER
+                maxLines = 1
+            }, lp())
             nav.addView(cell, lp(0, WRAP, 1f))
-            navItems.add(icon to label)
         }
-        return nav
     }
 
     private fun header(gap: Int): LinearLayout = vbox(gap).apply {
@@ -352,7 +376,7 @@ class MainActivity : Activity() {
         startActivity(i)
     }
 
-    /** « Traduire » : 10 mots ou 10 phrases déjà vus, en plus des 3 séances. */
+    /** « Traduire » : 10 mots (dont parfois quelques nouveaux) ou 10 phrases déjà vues, en plus des 3 séances. */
     private fun translateCard(): View {
         val card = vbox(10).apply {
             pad(14, 12, 14, 16)
@@ -364,24 +388,28 @@ class MainActivity : Activity() {
         card.addView(title, lp())
         val row = hbox(14).apply { gravity = Gravity.TOP }
         for (words in listOf(true, false)) {
-            val seen = content.items.count { it.isWord == words && progress.isIntroduced(it) }
-            val n = if (seen == 0) Planner.EXERCISES else minOf(Planner.EXERCISES, seen)
+            val size = Planner.translationSize(content, progress, words)
+            val n = if (size == 0) Planner.EXERCISES else size
+            // Des mots nouveaux seulement quand ceux déjà vus sont presque tous à peu près maîtrisés.
+            val fresh = if (words) Planner.newWordsToTranslate(content, progress).size.coerceAtMost(n) else 0
+            val what = if (words) (if (n > 1) "mots" else "mot") else (if (n > 1) "phrases" else "phrase")
+            val sub = if (fresh > 0) "dont ${Fr.count(fresh, "nouveau", "nouveaux")} →" else "à traduire →"
             val button = vbox(1).apply {
                 pad(12, 8, 12, 8)
                 box(C.YELLOW, 14, C.NAVY, 3, C.NAVY, 4)
-                contentDescription = "Traduire $n ${if (words) "mots" else "phrases"}"
-                onTap { startTranslation(words, seen) }
+                contentDescription = "Traduire $n $what" + if (fresh > 0) ", dont ${Fr.count(fresh, "nouveau", "nouveaux")}" else ""
+                onTap { startTranslation(words, size) }
             }
-            button.addView(text("$n ${if (words) (if (n > 1) "mots" else "mot") else (if (n > 1) "phrases" else "phrase")}", 21f, 800))
-            button.addView(text("à traduire →", 13f, 700))
+            button.addView(text("$n $what", 21f, 800))
+            button.addView(text(sub, 13f, 700))
             row.addView(button, lp(0, WRAP, 1f))
         }
         card.addView(row, lp())
         return card
     }
 
-    private fun startTranslation(words: Boolean, seen: Int) {
-        if (seen == 0) {
+    private fun startTranslation(words: Boolean, size: Int) {
+        if (size == 0) {
             val what = if (words) "des mots" else "des phrases"
             Toast.makeText(this, "Il faut d'abord voir $what en séance : ensuite, tu pourras les traduire.", Toast.LENGTH_LONG).show()
             return
@@ -396,8 +424,8 @@ class MainActivity : Activity() {
         val titles = vbox(2)
         titles.addView(text("TA ROUTE", 30f, 800, line = 0.95f))
         val what = if (routeLine.isPhrases) "les phrases" else "les mots"
-        val hint = "Le jeepney avance quand tu connais bien $what d'un arrêt." +
-            if (routeLine == Line.COMPLEX) " Touche un arrêt pour revoir sa leçon." else ""
+        val hint = "Le jeepney avance quand tu connais bien $what d'un arrêt. " +
+            if (routeLine == Line.COMPLEX) "Touche n'importe quel arrêt pour voir sa leçon." else "Touche n'importe quel arrêt pour le découvrir."
         titles.addView(text(hint, 14f, 600, line = 1.2f))
         h.addView(titles, lp())
         val tabs = hbox(8)
@@ -487,15 +515,26 @@ class MainActivity : Activity() {
                 t.addView(text("$known $unit sur $total bien connu${if (stop.line.isPhrases) "e" else ""}s", 13f, 600))
                 card.addView(t, lp(0, WRAP, 1f))
                 card.addView(ImageView(this).apply { setImageResource(R.drawable.jeepney) }, LinearLayout.LayoutParams(dp(44), dp(30)))
+                card.addIcon(R.drawable.ic_chevron, 18, C.NAVY)
                 row.addView(card, lp(0, WRAP, 1f).apply { topMargin = dp(8); bottomMargin = dp(8) })
                 row.minimumHeight = dp(76)
             }
             else -> {
-                row.addView(text("${stop.number} · ${stop.title}", 16f, 700, C.MUTED), lp(0, WRAP, 1f))
+                // Plus loin sur la route : on voit déjà combien de ses mots sont venus dans les séances.
+                val t = vbox().apply { pad(0, 4, 0, 4) }
+                t.addView(text("${stop.number} · ${stop.title}", 16f, 700, C.MUTED))
+                val seen = stop.items.count { progress.isIntroduced(it) }
+                if (seen > 0) {
+                    val e = if (stop.line.isPhrases) "e" else ""
+                    t.addView(text("$seen/$total déjà vu$e${if (seen > 1) "s" else ""}", 13f, 600, C.MUTED))
+                }
+                row.addView(t, lp(0, WRAP, 1f))
                 row.minimumHeight = dp(48)
             }
         }
-        if (stop.lesson != null && state != RouteRail.FUTURE) row.onTap { openLesson(stop.key) }
+        // Chaque arrêt s'ouvre, même ceux où le jeepney n'est pas encore allé : sa leçon, ou ses mots à découvrir.
+        if (state != RouteRail.CURRENT) row.addIcon(R.drawable.ic_chevron, 18, if (state == RouteRail.FUTURE) C.MUTED else C.NAVY)
+        row.onTap { openLesson(stop.key) }
         return row
     }
 
@@ -871,6 +910,16 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        /** La hauteur de la place des ronds dans la barre du bas (la route passe au milieu). */
+        private const val NAV_SPOT = 48
+        private val NAV = listOf(
+            R.drawable.ic_home to "Accueil",
+            R.drawable.ic_route to "Route",
+            R.drawable.ic_cap to "Leçons",
+            R.drawable.ic_book to "Lexique",
+            R.drawable.ic_medal to "Badges",
+        )
+
         const val EXTRA_TAB = "tab"
         const val EXTRA_LINE = "line"
         const val EXTRA_DEMO = "demo"

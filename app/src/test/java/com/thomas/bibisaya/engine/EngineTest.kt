@@ -269,10 +269,17 @@ class EngineTest {
     @Test
     fun translateTenWords() {
         val p = Progress().apply { installDay = 0 }
-        assertEquals(null, Planner.buildTranslation(content, p, words = true, today = 0))
+        assertEquals(null, Planner.buildTranslation(content, p, words = false, today = 0))
+        // Rien de vu : les 3 premiers mots de la route, chacun avec sa carte.
+        val start = Planner.buildTranslation(content, Progress().apply { installDay = 0 }, words = true, today = 0, random = Random(1))!!
+        assertEquals(3, start.gradedTotal)
+        assertEquals(content.items(Line.VOCAB).take(3), start.steps.filterIsInstance<NewStep>().map { it.item })
+        checkSteps(start)
         val words = content.items(Line.VOCAB).take(30)
         words.forEach { p.introduce(it, 0) }
         words.drop(10).forEach { p.answer(it, true, 0) }
+        // 20 mots sur 30 à peu près maîtrisés (67 %) : pas de mot nouveau, on consolide.
+        assertEquals(emptyList<Item>(), Planner.newWordsToTranslate(content, p))
         val s = Planner.buildTranslation(content, p, words = true, today = 1, random = Random(2))!!
         assertEquals(Mode.TRANSLATE_WORDS, s.mode)
         val exercises = s.steps.map { it as Exercise }
@@ -289,6 +296,40 @@ class EngineTest {
 
         val again = Planner.buildTranslation(content, p, words = true, today = 1, random = Random(3), avoid = exercises.map { it.item.id }.toSet())!!
         assertTrue("pas les mêmes 10", again.steps.none { (it as Exercise).item in exercises.map { e -> e.item } })
+    }
+
+    @Test
+    fun translateAddsNewWordsWhenMostAreKnown() {
+        val p = Progress().apply { installDay = 0 }
+        val words = content.items(Line.VOCAB).take(30)
+        words.forEach { p.introduce(it, 0) }
+        words.drop(6).forEach { p.answer(it, true, 0) }
+        // 24 mots sur 30 à peu près maîtrisés (80 %) : 3 mots nouveaux, les suivants sur la route.
+        val next = content.items(Line.VOCAB).drop(30).take(3)
+        assertEquals(next, Planner.newWordsToTranslate(content, p))
+        assertEquals(10, Planner.translationSize(content, p, words = true))
+        val s = Planner.buildTranslation(content, p, words = true, today = 1, random = Random(8))!!
+        assertEquals(10, s.gradedTotal)
+        val cards = s.steps.withIndex().filter { it.value is NewStep }
+        assertEquals(next, cards.map { (it.value as NewStep).item })
+        assertEquals("avant la 1re, la 4e et la 7e question", listOf(0, 4, 8), cards.map { it.index })
+        for ((at, card) in cards) {
+            // Sa question vient 2 questions après la carte : on le traduit de mémoire.
+            val ask = s.steps.indexOfFirst { it is Exercise && it.item == (card as NewStep).item }
+            assertEquals(at + 3, ask)
+            assertEquals(Kind.WRITE, (s.steps[ask] as Exercise).kind)
+        }
+        checkSteps(s)
+        playSession(s, Random(9), 1.0)
+        assertTrue(next.all { p.isIntroduced(it) })
+        assertEquals(next, s.newItems)
+        // 23 sur 30 (77 %) : il faut d'abord mieux connaître les mots déjà vus.
+        val q = Progress().apply { installDay = 0 }
+        words.forEach { q.introduce(it, 0) }
+        words.drop(7).forEach { q.answer(it, true, 0) }
+        assertEquals(emptyList<Item>(), Planner.newWordsToTranslate(content, q))
+        assertEquals(10, Planner.translationSize(content, q, words = true))
+        assertEquals(0, Planner.buildTranslation(content, q, words = true, today = 1)!!.steps.count { it is NewStep })
     }
 
     @Test
@@ -317,7 +358,7 @@ class EngineTest {
         assertEquals(Mode.LESSON, s.mode)
         assertEquals(stop, s.stop)
         assertEquals(10, s.gradedTotal)
-        assertEquals(6, s.steps.count { it is NewStep })
+        assertEquals("5 nouveautés au plus", 5, s.steps.count { it is NewStep })
         checkSteps(s)
         assertTrue(s.steps.filterIsInstance<Exercise>().all { it.item.stop == stop.number && it.item.line == Line.COMPLEX })
         playSession(s, Random(7), 1.0)
@@ -328,6 +369,24 @@ class EngineTest {
         assertEquals("pas une des 3 séances", 0, p.sessionsDone)
         assertTrue(p.slotsDone(0).isEmpty())
         assertEquals(0, p.streak)
+    }
+
+    @Test
+    fun discoverAStopFarAhead() {
+        val p = Progress().apply { installDay = 0 }
+        val stop = content.stops(Line.VOCAB)[9]
+        val s = Planner.buildLessonPractice(content, p, stop, 0, Random(10))
+        assertEquals(10, s.gradedTotal)
+        assertEquals(stop.items.take(5), s.steps.filterIsInstance<NewStep>().map { it.item }.sortedBy { stop.items.indexOf(it) })
+        assertTrue(s.steps.filterIsInstance<Exercise>().all { it.item in stop.items.take(5) })
+        checkSteps(s)
+        playSession(s, Random(11), 1.0)
+        assertEquals(5, stop.items.count { p.isIntroduced(it) })
+        // La fois d'après : les 5 suivants, puis les déjà vus.
+        val again = Planner.buildLessonPractice(content, p, stop, 1, Random(12))
+        assertEquals(stop.items.drop(5).take(5).toSet(), again.steps.filterIsInstance<NewStep>().map { it.item }.toSet())
+        assertEquals(10, again.gradedTotal)
+        checkSteps(again)
     }
 
     // ---------- Les fiches ----------
@@ -577,6 +636,19 @@ class EngineTest {
     }
 
     @Test
+    fun sessionsAlwaysBringNewWords() {
+        // Les 2 premiers arrêts sont vus, mais pas encore bien connus : le jeepney n'a pas bougé.
+        val p = Progress().apply { installDay = 0 }
+        val stops = content.stops(Line.VOCAB)
+        (stops[0].items + stops[1].items).forEach { p.introduce(it, 0) }
+        assertEquals(stops[0], p.currentStop(content, Line.VOCAB))
+        val s = Planner.build(content, p, Slot.MATIN, Line.VOCAB, 1, Random(13))
+        val news = s.steps.filterIsInstance<NewStep>().map { it.item }
+        assertEquals("les mots de l'arrêt 3", stops[2].items.take(3), news)
+        checkSteps(s)
+    }
+
+    @Test
     fun firstComplexSessionStartsWithTheLesson() {
         val p = Progress().apply { installDay = 0 }
         val s = Planner.build(content, p, Slot.SOIR, Line.COMPLEX, 0, Random(2))
@@ -773,7 +845,12 @@ class EngineTest {
         s.steps.forEachIndexed { i, step ->
             when (step) {
                 is LessonStep -> assertTrue(s.steps[i + 1] is NewStep)
-                is NewStep -> assertEquals(step.item, (s.steps[i + 1] as Exercise).item)
+                // En séance, la question suit la carte ; en traduction, elle vient un peu plus loin.
+                is NewStep -> if (s.mode.isTranslation) {
+                    assertTrue(s.steps.drop(i + 1).any { it is Exercise && it.item == step.item })
+                } else {
+                    assertEquals(step.item, (s.steps[i + 1] as Exercise).item)
+                }
                 is Exercise -> checkExercise(step)
                 is RondeIntroStep -> assertTrue(s.steps[i + 1] is RondeStep)
                 is RondeStep -> {

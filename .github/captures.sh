@@ -99,6 +99,12 @@ screens() {
   down "${p}30-traduire-fin-bas"
   shot "${p}31-entrainement" 4 --ez demo true --es demoStep PRACTICE
 
+  # Découvrir un arrêt plus loin que le jeepney (depuis la route)
+  shot "${p}33-arret-plus-loin" 4 --ez demo true --es demoStep STOP_FUTURE
+  down "${p}33-arret-plus-loin-bas"
+  shot "${p}34-decouverte-fin" 5 --ez demo true --es demoStep DISCOVER_END
+  down "${p}34-decouverte-fin-bas"
+
   # La fenêtre « Arrêter la séance ? »
   shot "${p}32-arreter" 4 --ez demo true --es demoStep CHOOSE_FR
   adb shell input keyevent KEYCODE_BACK

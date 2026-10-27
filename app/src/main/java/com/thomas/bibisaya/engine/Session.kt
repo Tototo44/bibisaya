@@ -221,6 +221,14 @@ object Planner {
     const val MAX_WRITE_TOKENS = 6
     /** En mode « Traduire », une phrase à écrire en cebuano : pas plus de 8 mots. */
     const val MAX_TRANSLATE_TOKENS = 8
+    /** « Traduire » des mots : au plus 3 mots nouveaux à la fois… */
+    const val NEW_IN_TRANSLATION = 3
+    /** … et seulement si au moins 80 % des mots déjà vus sont à peu près maîtrisés. */
+    const val MASTERY_PERCENT = 80
+    /** Un mot nouveau se traduit 2 questions après sa carte : de mémoire, sans le recopier. */
+    private const val NEW_WORD_DELAY = 2
+    /** S'entraîner sur un arrêt (ou le découvrir) : au plus 5 nouveautés à la fois. */
+    const val PRACTICE_NEW = 5
 
     fun newQuota(line: Line) = when (line) {
         Line.VOCAB -> 3
@@ -482,9 +490,29 @@ object Planner {
     }
 
     /**
+     * Les mots nouveaux d'une traduction : les suivants sur la route, jusqu'à 3. Seulement si au moins 80 %
+     * des mots déjà vus sont à peu près maîtrisés : sinon, on consolide d'abord ce qu'on a vu.
+     */
+    fun newWordsToTranslate(content: Content, progress: Progress): List<Item> {
+        val seen = content.items(Line.VOCAB).filter { progress.isIntroduced(it) }
+        val roughly = seen.count { progress.isRoughlyKnown(it) }
+        if (roughly * 100 < seen.size * MASTERY_PERCENT) return emptyList()
+        return progress.nextNewItems(content, Line.VOCAB, NEW_IN_TRANSLATION)
+    }
+
+    /** Le nombre de questions de la prochaine traduction (0 s'il n'y a encore rien à traduire). */
+    fun translationSize(content: Content, progress: Progress, words: Boolean): Int {
+        val lines = if (words) listOf(Line.VOCAB) else listOf(Line.SIMPLE, Line.COMPLEX)
+        val seen = content.items.count { it.line in lines && progress.isIntroduced(it) }
+        val fresh = if (words) newWordsToTranslate(content, progress).size else 0
+        return minOf(EXERCISES, seen + fresh)
+    }
+
+    /**
      * « Traduire » : 10 mots (ou phrases) déjà vus, les plus fragiles d'abord. 8 à écrire en cebuano,
-     * 2 à écrire en français. [avoid] : ceux de la traduction d'avant, gardés pour plus tard.
-     * Null s'il n'y a encore rien à traduire.
+     * 2 à écrire en français. Pour les mots, aussi jusqu'à 3 mots nouveaux (voir [newWordsToTranslate]) :
+     * leur carte d'abord, puis on les traduit comme les autres.
+     * [avoid] : ceux de la traduction d'avant, gardés pour plus tard. Null s'il n'y a rien à traduire.
      */
     fun buildTranslation(
         content: Content,
@@ -496,40 +524,81 @@ object Planner {
     ): Session? {
         val lines = if (words) listOf(Line.VOCAB) else listOf(Line.SIMPLE, Line.COMPLEX)
         val seen = content.items.filter { it.line in lines && progress.isIntroduced(it) }
-        if (seen.isEmpty()) return null
+        val fresh = if (words) newWordsToTranslate(content, progress) else emptyList()
+        if (seen.isEmpty() && fresh.isEmpty()) return null
         val ranked = seen.shuffled(random).sortedWith(
             compareBy<Item>({ it.id in avoid }, { progress.level(it) }, { progress.state(it)!!.dueDay })
         )
-        val total = minOf(EXERCISES, seen.size)
-        val inverse = total / 5
-        val toCeb = ranked.filter { words || it.tokens.size <= MAX_TRANSLATE_TOKENS }.take(total - inverse)
-        val toFr = ranked.filter { it !in toCeb }.take(total - toCeb.size)
-        val steps = mutableListOf<Step>()
-        toCeb.shuffled(random).forEach { steps.add(exercise(content, Kind.WRITE, it, true, random)) }
+        val total = minOf(EXERCISES, seen.size + fresh.size)
+        val reviewCount = total - fresh.size
+        val inverse = minOf(total / 5, reviewCount)
+        val toCeb = ranked.filter { words || it.tokens.size <= MAX_TRANSLATE_TOKENS }.take(reviewCount - inverse)
+        val toFr = ranked.filter { it !in toCeb }.take(reviewCount - toCeb.size)
+        val reviews = mutableListOf<Exercise>()
+        toCeb.shuffled(random).forEach { reviews.add(exercise(content, Kind.WRITE, it, true, random)) }
         // Vers le français : à la 4e et à la 8e question.
         toFr.forEachIndexed { k, item ->
-            val at = (3 + 4 * k).coerceAtMost(steps.size)
-            steps.add(at, exercise(content, Kind.TRANSLATE_FR, item, true, random))
+            val at = (3 + 4 * k).coerceAtMost(reviews.size)
+            reviews.add(at, exercise(content, Kind.TRANSLATE_FR, item, true, random))
         }
+        val steps = withNewWords(content, reviews, fresh, random)
         val mode = if (words) Mode.TRANSLATE_WORDS else Mode.TRANSLATE_PHRASES
         return Session(content, progress, null, null, today, steps, random, mode)
     }
 
     /**
-     * S'entraîner sur une leçon : une question sur chaque phrase de l'arrêt, les plus fragiles d'abord.
-     * Une phrase jamais vue a d'abord sa carte « nouvelle phrase ».
+     * Glisse les mots nouveaux dans une traduction : la carte du mot, puis 2 questions plus loin, le mot
+     * à traduire comme les autres. Les cartes sont réparties (avant la 1re, la 4e et la 7e question sur 10).
+     */
+    private fun withNewWords(content: Content, reviews: List<Exercise>, fresh: List<Item>, random: Random): MutableList<Step> {
+        val steps = mutableListOf<Step>()
+        val total = reviews.size + fresh.size
+        val queue = ArrayDeque(reviews)
+        // La question d'un mot nouveau, et à partir de quelle question elle peut venir.
+        val waiting = ArrayDeque<Pair<Exercise, Int>>()
+        var asked = 0
+        var shown = 0
+        while (asked < total) {
+            if (shown < fresh.size && asked >= shown * total / fresh.size) {
+                val item = fresh[shown++]
+                steps.add(NewStep(item))
+                waiting.add(exercise(content, Kind.WRITE, item, true, random) to asked + NEW_WORD_DELAY)
+                continue
+            }
+            val ready = waiting.firstOrNull()?.takeIf { asked >= it.second || queue.isEmpty() }
+            steps.add(if (ready != null) waiting.removeFirst().first else queue.removeFirst())
+            asked++
+        }
+        return steps
+    }
+
+    /**
+     * S'entraîner sur un arrêt (ou le découvrir avant que le jeepney y soit) : 10 questions. D'abord jusqu'à
+     * 5 nouveautés, chacune avec sa carte, puis les mots ou phrases déjà vus, les plus fragiles d'abord.
+     * S'il manque des questions, une 2e question sur les nouveautés.
      */
     fun buildLessonPractice(content: Content, progress: Progress, stop: Stop, today: Long, random: Random = Random.Default): Session {
-        val chosen = stop.items.shuffled(random).sortedBy { progress.level(it) }.take(EXERCISES)
-        val steps = mutableListOf<Step>()
-        for (item in chosen.shuffled(random)) {
-            if (!progress.isIntroduced(item)) {
-                steps.add(NewStep(item))
-                steps.add(exercise(content, firstKind(item), item, true, random))
-            } else {
-                steps.add(exercise(content, practiceKind(item, progress.level(item), random), item, true, random))
+        val fresh = stop.items.filter { !progress.isIntroduced(it) }.take(PRACTICE_NEW)
+        val seen = stop.items.filter { progress.isIntroduced(it) }.shuffled(random).sortedBy { progress.level(it) }
+        val chosen = (fresh + seen).take(EXERCISES)
+        val units = chosen.map { item ->
+            if (item in fresh) listOf(NewStep(item), exercise(content, firstKind(item), item, true, random))
+            else listOf(exercise(content, practiceKind(item, progress.level(item), random), item, true, random))
+        }.shuffled(random)
+        val more = mutableListOf<Exercise>()
+        var round = 0
+        while (chosen.size + more.size < EXERCISES && chosen.isNotEmpty() && round < 6) {
+            for (item in chosen) {
+                if (chosen.size + more.size >= EXERCISES) break
+                more.add(exercise(content, secondKind(item, round), item, true, random))
             }
+            round++
         }
+        // Les questions en plus, mélangées, mais pas deux fois de suite sur le même mot.
+        val extra = more.shuffled(random).toMutableList()
+        val last = (units.lastOrNull()?.last() as? Exercise)?.item
+        if (extra.size > 1 && extra.first().item == last) extra.add(extra.removeAt(0))
+        val steps = (units.flatten() + extra).toMutableList()
         return Session(content, progress, null, stop.line, today, steps, random, Mode.LESSON, stop)
     }
 
