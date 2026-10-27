@@ -103,6 +103,24 @@ screens() {
   shot "${p}32-arreter" 4 --ez demo true --es demoStep CHOOSE_FR
   adb shell input keyevent KEYCODE_BACK
   now "${p}32-arreter"
+
+  # La ronde des personnes (leçons 1 et 4)
+  shot "${p}50-lecon-1-ronde" 4 --ez demo true --es demoStep LESSON_C1
+  down "${p}50-lecon-1-ronde-bas"
+  shot "${p}51-ronde-presentation" 4 --ez demo true --es demoStep RONDE_INTRO
+  down "${p}51-ronde-presentation-bas"
+  shot "${p}52-ronde" 4 --ez demo true --es demoStep RONDE
+  shot "${p}53-ronde-juste" 5 --ez demo true --es demoStep RONDE --es demoAnswer right
+  shot "${p}54-ronde-faux" 5 --ez demo true --es demoStep RONDE --es demoAnswer wrong
+  shot "${p}55-ronde-tu" 5 --ez demo true --es demoStep RONDE_YOU --es demoAnswer right
+  shot "${p}56-ronde-2e-tour" 4 --ez demo true --es demoStep RONDE_INTRO2
+  shot "${p}57-ronde-ecrire" 5 --ez demo true --es demoStep RONDE_WRITE
+  shot "${p}58-ronde-ecrire-forme-longue" 6 --ez demo true --es demoStep RONDE_WRITE --es demoAnswer long
+  shot "${p}59-ronde-possessifs-faux" 5 --ez demo true --es demoStep RONDE_POSS --es demoAnswer wrong
+  shot "${p}60-ronde-possessifs-ecrire-faux" 6 --ez demo true --es demoStep RONDE_POSS_WRITE --es demoAnswer position
+  shot "${p}61-ronde-fin" 5 --ez demo true --es demoStep RONDE_END
+  down "${p}61-ronde-fin-bas"
+  shot "${p}62-ronde-du-soir" 5 --ez demo true --es demoStep RONDE_EVENING
 }
 
 screens ""

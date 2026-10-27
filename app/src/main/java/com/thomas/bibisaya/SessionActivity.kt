@@ -3,7 +3,9 @@ package com.thomas.bibisaya
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Paint
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.text.InputFilter
 import android.text.InputType
 import android.text.SpannableStringBuilder
 import android.text.Spanned
@@ -30,7 +32,13 @@ import com.thomas.bibisaya.engine.Mode
 import com.thomas.bibisaya.engine.NewStep
 import com.thomas.bibisaya.engine.Plan
 import com.thomas.bibisaya.engine.Planner
+import com.thomas.bibisaya.engine.Person
 import com.thomas.bibisaya.engine.Progress
+import com.thomas.bibisaya.engine.Ronde
+import com.thomas.bibisaya.engine.RondeIntroStep
+import com.thomas.bibisaya.engine.RondeKind
+import com.thomas.bibisaya.engine.RondeQuestion
+import com.thomas.bibisaya.engine.RondeStep
 import com.thomas.bibisaya.engine.Session
 import com.thomas.bibisaya.engine.Slot
 import com.thomas.bibisaya.engine.SlotState
@@ -41,7 +49,7 @@ import kotlin.random.Random
 
 /**
  * Une série de questions : une séance (petite leçon, nouveaux mots, 10 exercices, écran de fin),
- * une traduction (10 mots ou 10 phrases) ou un entraînement sur une leçon.
+ * une traduction (10 mots ou 10 phrases), un entraînement sur une leçon, ou la ronde des personnes.
  */
 class SessionActivity : Activity() {
     private lateinit var store: Store
@@ -56,6 +64,8 @@ class SessionActivity : Activity() {
     private var demoHook: ((String) -> Unit)? = null
     /** Pour les captures d'écran : « Ma réponse était juste aussi ». */
     private var acceptHook: (() -> Unit)? = null
+    /** La ronde passe toute seule à la question suivante après une bonne réponse ; ce numéro annule un passage prévu. */
+    private var advanceToken = 0
 
     private val mode: Mode get() = run?.session?.mode ?: Mode.SESSION
 
@@ -84,11 +94,12 @@ class SessionActivity : Activity() {
         val slot = Slot.of(intent.getStringExtra(EXTRA_SLOT) ?: "")
         val wanted = when {
             intent.hasExtra(EXTRA_TRANSLATE) -> if (intent.getStringExtra(EXTRA_TRANSLATE) == "PHRASES") Mode.TRANSLATE_PHRASES else Mode.TRANSLATE_WORDS
+            intent.hasExtra(EXTRA_RONDE) -> Mode.RONDE
             intent.hasExtra(EXTRA_PRACTICE) -> Mode.LESSON
             else -> Mode.SESSION
         }
-        val practiced = intent.getStringExtra(EXTRA_PRACTICE)?.let { content.stopByKey(it) }
-        if (wanted == Mode.LESSON && practiced == null) {
+        val practiced = (intent.getStringExtra(EXTRA_RONDE) ?: intent.getStringExtra(EXTRA_PRACTICE))?.let { content.stopByKey(it) }
+        if ((wanted == Mode.LESSON && practiced == null) || (wanted == Mode.RONDE && practiced?.lesson?.ronde == null)) {
             finish()
             return
         }
@@ -111,6 +122,7 @@ class SessionActivity : Activity() {
                     Planner.build(content, pr, slot, line, today)
                 }
                 Mode.LESSON -> Planner.buildLessonPractice(content, pr, practiced!!, today)
+                Mode.RONDE -> Ronde.full(content, pr, practiced!!, today)
                 else -> {
                     val built = Planner.buildTranslation(content, pr, wanted == Mode.TRANSLATE_WORDS, today, avoid = Data.lastTranslation[wanted] ?: emptySet())
                     if (built == null) {
@@ -151,6 +163,7 @@ class SessionActivity : Activity() {
                 "CONTINUER LA SÉANCE",
             )
             Mode.LESSON -> Triple("Arrêter l'entraînement ?", practice, "CONTINUER")
+            Mode.RONDE -> Triple("Arrêter la ronde ?", practice, "CONTINUER")
             else -> Triple("Arrêter la traduction ?", practice, "CONTINUER")
         }
         confirm(
@@ -175,17 +188,27 @@ class SessionActivity : Activity() {
         Gloss.dismiss()
         demoHook = null
         acceptHook = null
+        advanceToken++
         if (r.outcome != null || r.session.finished) {
-            if (r.session.mode == Mode.SESSION) showEnd() else showPracticeEnd()
+            hideKeyboard()
+            when (r.session.mode) {
+                Mode.SESSION -> showEnd()
+                Mode.RONDE -> showRondeEnd()
+                else -> showPracticeEnd()
+            }
             return
         }
         val step = r.session.current!!
         r.session.onShown(step)
         store.save(r.progress)
         busy = false
+        // Dans la ronde, le clavier reste ouvert d'une question à écrire à la suivante.
+        if (!(step is RondeStep && !step.q.tap)) hideKeyboard()
         sessionHeader(step)
         when (step) {
             is LessonStep -> showLesson(step.stop)
+            is RondeIntroStep -> showRondeIntro(step)
+            is RondeStep -> showRonde(step)
             is NewStep -> showNew(step.item)
             is Exercise -> when (step.kind) {
                 Kind.CHOOSE_CEB, Kind.CHOOSE_FR, Kind.GAP -> showChoice(step)
@@ -214,11 +237,13 @@ class SessionActivity : Activity() {
         val close = when (s.mode) {
             Mode.SESSION -> "Fermer la séance"
             Mode.LESSON -> "Arrêter l'entraînement"
+            Mode.RONDE -> "Arrêter la ronde"
             else -> "Arrêter la traduction"
         }
         row.addView(squareButton(R.drawable.ic_close, close, shadow = false) { askStop() })
         val bar = Bar(this, C.WHITE, C.RED, dpf(3))
-        bar.fraction = if (step is LessonStep) 0.06f + s.gradedAnswered.toFloat() / total else s.counter.toFloat() / total
+        val intro = step is LessonStep || step is RondeIntroStep
+        bar.fraction = if (intro) 0.06f + s.gradedAnswered.toFloat() / total else s.counter.toFloat() / total
         row.addView(bar, lp(0, dp(24), 1f))
         row.addView(text("${s.counter}/${s.gradedTotal}", 16f, 800))
         setHead(row)
@@ -642,6 +667,16 @@ class SessionActivity : Activity() {
         input.isCursorVisible = false
         input.keyListener = null
         getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(input.windowToken, 0)
+    }
+
+    private fun hideKeyboard() {
+        getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(body.windowToken, 0)
+    }
+
+    /** Le champ ne se modifie plus, mais le clavier reste ouvert pour la question suivante. */
+    private fun freeze(input: EditText) {
+        input.filters = arrayOf(InputFilter { _, _, _, dest, start, end -> dest.subSequence(start, end) })
+        input.isCursorVisible = false
     }
 
     /** Le champ devient vert (juste) ou rouge (faux). */
@@ -1152,6 +1187,371 @@ class SessionActivity : Activity() {
         }
     }
 
+    // ---------- La ronde des personnes ----------
+
+    /** La présentation d'un tour : ce qu'on va faire, et au 1er tour, comment lire le dessin. */
+    private fun showRondeIntro(step: RondeIntroStep) {
+        val stop = step.stop
+        val kind = stop.lesson!!.ronde!!
+        val intro = when {
+            kind == RondeKind.PRONOUNS && !step.second ->
+                "Une seule phrase, et la personne change à chaque question. Touche la forme longue : **ako**, **kita**, **kami**…\n\n" +
+                    "Pour « tu », c'est toujours **ka** après le mot : **ikaw** se met au début de la phrase."
+            kind == RondeKind.PRONOUNS ->
+                "Les 7 personnes encore, avec un autre mot. Cette fois, écris la forme courte : **Maestro ko.** = Je suis professeur.\n\n" +
+                    "**Siya** et **sila** n'ont pas de forme courte : écris-les comme ça."
+            !step.second ->
+                "Une seule phrase, et la personne change à chaque question. Touche le mot qui se met **avant** la chose : **akong balay** = ma maison."
+            else ->
+                "Les 7 personnes encore, avec un autre mot. Cette fois, le mot se met **après** la chose : **balay nako** = ma maison. Écris-le !"
+        }
+        page(18) {
+            addView(tagRow("LA RONDE", "Leçon ${stop.number} · ${stop.title}"), lp())
+            val top = vbox(10)
+            top.addView(text(if (step.second) "2e tour" else "1er tour", 34f, 800, line = 1.0f))
+            top.addView(rich(intro, 17f, 500, line = 1.4f))
+            addView(top, lp())
+            if (!step.second) addView(drawingHelp(kind), lp())
+        }
+        actionFooter(primaryButton("C'EST PARTI →", 60, 20f) { next() })
+    }
+
+    /** Comment lire le dessin : kita (nous avec toi) et kami (nous sans toi). */
+    private fun drawingHelp(kind: RondeKind): View {
+        val card = vbox(12).apply {
+            pad(16, 14, 16, 14)
+            box(C.WHITE, 18, C.NAVY, 3)
+        }
+        card.addView(label("QUI EST DANS « NOUS » ?"))
+        for (p in listOf(Person.WE_IN, Person.WE_EX)) {
+            val row = hbox(14)
+            row.addView(PeopleView(this, p, labels = true))
+            val words = vbox(1)
+            words.addView(text(kind.form(p, false), 24f, 800, C.LABEL))
+            words.addView(text(if (p == Person.WE_IN) "nous, avec toi" else "nous, sans toi", 15f, 700))
+            row.addView(words, lp(0, WRAP, 1f))
+            card.addView(row, lp())
+        }
+        card.addView(text("En couleur : ceux qui sont dans « nous ». En pointillés : ceux qui n'y sont pas.", 14f, 600, C.GRAY, line = 1.3f))
+        return card
+    }
+
+    private fun showRonde(step: RondeStep) {
+        val q = step.q
+        val s = run!!.session
+        val round = q.kind.round(q.second)
+        val where = if (s.mode == Mode.RONDE) "${if (q.second) "2e" else "1er"} tour · $round" else "Leçon ${q.stop.number} · $round"
+        if (q.tap) {
+            val blank = text("", 26f, 800).apply {
+                gravity = Gravity.CENTER
+                minWidth = dp(96)
+                minHeight = dp(50)
+                pad(12, 4, 12, 4)
+                box(C.CREAM, 12, C.NAVY, 2.5f, dashed = true)
+            }
+            val chips = linkedMapOf<String, TextView>()
+            val grid = vbox(10)
+            for (row in q.options.chunked(3)) {
+                val line = hbox(10)
+                // Le 7e mot, seul sur sa ligne, reste au milieu.
+                if (row.size == 1) line.addView(View(this), lp(0, 1, 1f))
+                for (o in row) {
+                    val chip = text(o, 21f, 800).apply {
+                        gravity = Gravity.CENTER
+                        box(C.WHITE, 14, C.NAVY, 3, C.NAVY, 4)
+                        onTap { answerRondeTap(step, o, blank, chips) }
+                    }
+                    line.addView(chip, lp(0, dp(58), 1f))
+                    chips[o] = chip
+                }
+                if (row.size == 1) line.addView(View(this), lp(0, 1, 1f))
+                grid.addView(line, lp())
+            }
+            page(18, top = 20) {
+                addView(tagRow("LA RONDE", where), lp())
+                addView(rondeCard(q, blank), lp())
+                addView(grid, lp())
+            }
+            setFooter(null)
+            demoHook = { answer -> answerRondeTap(step, if (answer == "right") q.answer else demoWrong(q), blank, chips) }
+            return
+        }
+        val input = answerField("?", long = false, cebuano = true).apply {
+            gravity = Gravity.CENTER
+            minWidth = dp(124)
+            minHeight = dp(54)
+            pad(12, 0, 12, 0)
+        }
+        lateinit var check: TextView
+        check = primaryButton("VÉRIFIER", 60, 20f) { answerRondeWrite(step, input, check) }
+        page(18, top = 20) {
+            addView(tagRow("LA RONDE", where), lp())
+            addView(rondeCard(q, input), lp())
+            val hint = if (q.kind == RondeKind.PRONOUNS) "Écris la forme courte quand elle existe." else "Écris le mot qui se met après la chose."
+            addView(text(hint, 15f, 600, C.GRAY, line = 1.35f).apply { gravity = Gravity.CENTER }, lp())
+        }
+        fun enable(on: Boolean) {
+            check.isEnabled = on
+            check.alpha = if (on) 1f else 0.45f
+        }
+        enable(false)
+        input.onChange { enable(it.isNotBlank() && !busy) }
+        input.setOnEditorActionListener { _, _, _ ->
+            answerRondeWrite(step, input, check)
+            true
+        }
+        actionFooter(check)
+        input.requestFocus()
+        input.postDelayed({ getSystemService(InputMethodManager::class.java)?.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT) }, 250)
+        demoHook = { answer ->
+            input.setText(
+                when (answer) {
+                    "right" -> q.answer
+                    // L'autre forme de la même personne (ako pour ko), ou le mot qui va avant la chose (akong pour nako).
+                    "long" -> q.person.long
+                    "short" -> q.person.afterShort ?: q.answer
+                    "position" -> q.person.before
+                    else -> demoWrong(q)
+                }
+            )
+            answerRondeWrite(step, input, check)
+        }
+    }
+
+    /** La carte de la question : à qui on pense (avec le dessin), puis la phrase à trou et sa traduction. */
+    private fun rondeCard(q: RondeQuestion, gap: View): View {
+        val card = vbox().apply {
+            pad(3, 3, 3, 3)
+            box(C.WHITE, 22, C.NAVY, 3, C.NAVY, 6)
+            stateListAnimator = null
+        }
+        val r = dpf(19)
+        val band = hbox(10).apply {
+            pad(14, 10, 10, 10)
+            background = GradientDrawable().apply {
+                setColor(C.PALE_YELLOW)
+                cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+            }
+        }
+        val who = vbox(2)
+        who.addView(label(q.kind.question, 12f))
+        who.addView(text(q.kind.label(q.person), 22f, 800, line = 1.05f))
+        band.addView(who, lp(0, WRAP, 1f))
+        band.addView(PeopleView(this, q.person, labels = true))
+        card.addView(band, lp())
+        card.addView(View(this).apply { setBackgroundColor(C.NAVY) }, lp(MATCH, dp(3)))
+        val bottom = vbox(10).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            pad(12, 16, 12, 16)
+        }
+        // La phrase : chaque mot se touche pour voir son sens, et le trou est au milieu.
+        val size = if (q.before.length + q.after.length > 12) 26f else 30f
+        val flow = FlowLayout(this, dp(9), dp(8), centered = true)
+        fun words(value: String) {
+            for (w in value.split(" ").filter { it.isNotEmpty() }) {
+                val t = text(w, size, 800)
+                t.pad(0, 2, 0, 3)
+                t.background = DottedUnderline(C.DASH, dpf(2))
+                t.onTap {
+                    val clean = Content.cleanToken(w)
+                    Gloss.show(t, clean, content.gloss(clean))
+                }
+                flow.addView(t)
+            }
+        }
+        words(q.before)
+        flow.addView(gap)
+        words(q.after)
+        bottom.addView(flow, lp())
+        bottom.addView(text(q.french, 16f, 600, C.MUTED, line = 1.25f).apply { gravity = Gravity.CENTER }, lp())
+        card.addView(bottom, lp())
+        return card
+    }
+
+    /** Pour la démo : la réponse fausse la plus tentante (kita pour kami, ka pour ko…). */
+    private fun demoWrong(q: RondeQuestion): String {
+        val other = when (q.person) {
+            Person.WE_EX -> Person.WE_IN
+            Person.WE_IN -> Person.WE_EX
+            Person.ME -> Person.YOU
+            Person.YOU -> Person.ME
+            Person.YOU_PL -> Person.YOU
+            Person.HE -> Person.THEY
+            Person.THEY -> Person.HE
+        }
+        return q.kind.form(other, q.second)
+    }
+
+    private fun rondeRightTitle() = "${praise()} +${Progress.POINTS_ANSWER} points"
+
+    private fun answerRondeTap(step: RondeStep, picked: String, blank: TextView, chips: Map<String, TextView>) {
+        if (busy) return
+        busy = true
+        demoHook = null
+        val r = run!!
+        val q = step.q
+        val check = r.session.submitRonde(step, picked)
+        r.session.next()
+        store.save(r.progress)
+        for ((o, v) in chips) {
+            v.isClickable = false
+            v.stateListAnimator = null
+            v.translationX = 0f
+            v.translationY = 0f
+            when (o) {
+                q.answer -> {
+                    v.box(C.GREEN_BG, 14, C.GREEN, 3)
+                    v.setTextColor(C.GREEN_TEXT)
+                }
+                picked -> {
+                    v.box(C.WRONG_BG, 14, C.LABEL, 3)
+                    v.setTextColor(C.WRONG_TEXT)
+                }
+                else -> v.alpha = 0.5f
+            }
+        }
+        // Le trou se remplit avec la bonne réponse : la phrase est complète.
+        blank.text = q.answer
+        blank.box(C.GREEN_BG, 12, C.GREEN, 3)
+        blank.setTextColor(C.GREEN_TEXT)
+        if (check.correct) {
+            chips[picked]?.pop()
+            blank.pop()
+            Buzz.right(this)
+            if (check.note == null) advanceSoon() else panel(true, rondeRightTitle(), listOf(check.note!!))
+        } else {
+            chips[picked]?.shake()
+            Buzz.wrong(this)
+            panel(false, "Pas tout à fait…", listOfNotNull(check.note))
+        }
+    }
+
+    private fun answerRondeWrite(step: RondeStep, input: EditText, check: View) {
+        val typed = input.text.toString()
+        if (busy || typed.isBlank()) return
+        busy = true
+        demoHook = null
+        val r = run!!
+        val q = step.q
+        val verdict = r.session.submitRonde(step, typed)
+        r.session.next()
+        store.save(r.progress)
+        if (verdict.correct && verdict.note == null) {
+            freeze(input)
+            mark(input, true)
+            check.isEnabled = false
+            check.alpha = 0.45f
+            advanceSoon()
+            return
+        }
+        lock(input)
+        mark(input, verdict.correct)
+        if (verdict.correct) panel(true, rondeRightTitle(), listOf(verdict.note!!))
+        else panel(false, "Pas tout à fait…", listOfNotNull(verdict.note) + "**${q.sentence}** = ${q.french}")
+    }
+
+    /** Après une bonne réponse sans rien à expliquer : la question suivante arrive toute seule. */
+    private fun advanceSoon() {
+        if (Store.demo) return
+        val token = ++advanceToken
+        body.postDelayed({ if (token == advanceToken && !isFinishing && !isDestroyed) showCurrent() }, ADVANCE_MS)
+    }
+
+    /** La fin de la ronde : les points, et le tableau des 7 personnes, les erreurs en rouge. */
+    private fun showRondeEnd() {
+        val r = run!!
+        val s = r.session
+        val outcome = r.outcome ?: r.progress.finishPractice(content, r.day, s.correctFirst).also {
+            r.outcome = it
+            store.save(r.progress)
+            Buzz.win(this)
+        }
+        Gloss.dismiss()
+        val stop = s.stop!!
+        val kind = stop.lesson!!.ronde!!
+        endHeader("LEÇON ${stop.number} · LA RONDE DES PERSONNES", "C'EST FINI !", s)
+        page(16, top = 20) {
+            val row = hbox(12)
+            row.addView(stat("${s.correctFirst} / ${s.gradedTotal}", "bonnes réponses"), lp(0, WRAP, 1f))
+            row.addView(stat("+${outcome.points}", "points gagnés"), lp(0, WRAP, 1f))
+            addView(row, lp())
+            for (b in outcome.newBadges) addView(badgeCard(b), lp())
+            if (outcome.completedStops.isNotEmpty()) addView(stopsCard(outcome.completedStops), lp())
+            addView(rondeTable(s, kind), lp())
+            val notes = vbox(8)
+            if (s.rondeAnswers.any { !it.check.correct }) {
+                notes.addView(text("Les personnes en rouge reviendront plus souvent, à la fin de tes séances du soir.", 14f, 600, C.GRAY, line = 1.35f))
+            }
+            if (kind == RondeKind.PRONOUNS) {
+                notes.addView(rich("Pour « tu », après le mot, c'est toujours **ka** : **ikaw** se met au début de la phrase.", 14f, 500, C.GRAY))
+            }
+            addView(notes, lp())
+        }
+        actionFooter(
+            navyButton("RETOUR À LA LEÇON", 58, 18f) { goHome() },
+            outlineButton("Encore une ronde") { startAgain(s) },
+        )
+    }
+
+    /** « Ton tableau » : une ligne par personne, une colonne par tour (formes longues et courtes, avant et après). */
+    private fun rondeTable(s: Session, kind: RondeKind): View {
+        val col = vbox(8)
+        col.addView(text("TON TABLEAU", 16f, 800))
+        val card = vbox().apply {
+            pad(3, 3, 3, 3)
+            box(C.WHITE, 18, C.NAVY, 3)
+        }
+        val r = dpf(15)
+        val head = hbox(6).apply {
+            pad(12, 8, 12, 8)
+            background = GradientDrawable().apply {
+                setColor(C.NAVY)
+                cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+            }
+        }
+        val first = dp(100)
+        head.addView(View(this), LinearLayout.LayoutParams(first, 1))
+        for (c in listOf(kind.columns.first, kind.columns.second)) {
+            head.addView(text(c, 12f, 800, C.YELLOW, 0.06f).apply { gravity = Gravity.CENTER }, lp(0, WRAP, 1f))
+        }
+        card.addView(head, lp())
+        Person.values().forEachIndexed { i, p ->
+            if (i > 0) card.addView(dashes())
+            val row = hbox(6).apply { pad(12, 6, 12, 6) }
+            row.addView(text(kind.label(p), 13f, 700, line = 1.15f), LinearLayout.LayoutParams(first, WRAP))
+            for (second in listOf(false, true)) row.addView(rondeCell(s, p, second, kind), lp(0, WRAP, 1f))
+            card.addView(row, lp())
+        }
+        col.addView(card, lp())
+        return col
+    }
+
+    /** Une case du tableau : la bonne forme, en vert (juste) ou en rouge avec ce qui avait été mis. */
+    private fun rondeCell(s: Session, p: Person, second: Boolean, kind: RondeKind): View {
+        val a = s.rondeAnswers.lastOrNull { it.q.person == p && it.q.second == second }
+        val ok = a?.check?.correct
+        val cell = vbox().apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            pad(6, 5, 6, 5)
+            when (ok) {
+                true -> box(C.GREEN_BG, 10)
+                false -> box(C.WRONG_BG, 10)
+                null -> {}
+            }
+        }
+        val color = when (ok) {
+            true -> C.GREEN_TEXT
+            false -> C.WRONG_TEXT
+            null -> C.NAVY
+        }
+        cell.addView(text(kind.form(p, second), 17f, 800, color).apply { gravity = Gravity.CENTER }, lp())
+        if (ok == false) {
+            val given = a!!.given.trim().lowercase().take(14)
+            cell.addView(text("tu as mis $given", 11f, 600, C.WRONG_TEXT, line = 1.1f).apply { gravity = Gravity.CENTER }, lp())
+        }
+        return cell
+    }
+
     // ---------- Le panneau du bas, après une réponse ----------
 
     private fun praise(): String = listOf("Maayo kaayo !", "Sakto !", "Nindot !")[(run?.session?.correctFirst ?: 0) % 3]
@@ -1385,8 +1785,11 @@ class SessionActivity : Activity() {
     private fun startAgain(s: Session) {
         Data.running = null
         val i = Intent(this, SessionActivity::class.java)
-        if (s.mode == Mode.LESSON) i.putExtra(EXTRA_PRACTICE, s.stop!!.key)
-        else i.putExtra(EXTRA_TRANSLATE, if (s.mode == Mode.TRANSLATE_WORDS) "WORDS" else "PHRASES")
+        when (s.mode) {
+            Mode.LESSON -> i.putExtra(EXTRA_PRACTICE, s.stop!!.key)
+            Mode.RONDE -> i.putExtra(EXTRA_RONDE, s.stop!!.key)
+            else -> i.putExtra(EXTRA_TRANSLATE, if (s.mode == Mode.TRANSLATE_WORDS) "WORDS" else "PHRASES")
+        }
         startActivity(i)
         finish()
     }
@@ -1467,6 +1870,11 @@ class SessionActivity : Activity() {
         }
         val today = Store.today()
         val random = Random(5)
+        if (kind.startsWith("RONDE")) {
+            startRondeDemo(kind, pr, today, random)
+            if (answer != null) body.postDelayed({ demoHook?.invoke(answer) }, 700)
+            return
+        }
         if (kind.startsWith("TR_") || kind == "PRACTICE") {
             startPracticeDemo(kind, pr, today, random)
             if (answer != null) body.postDelayed({ demoHook?.invoke(answer) }, 700)
@@ -1547,6 +1955,67 @@ class SessionActivity : Activity() {
         showCurrent()
     }
 
+    /**
+     * Démo de la ronde : une question de la leçon 1 ou 4 (à toucher ou à écrire), la présentation d'un tour,
+     * l'écran de fin (avec 2 erreurs), ou la petite ronde à la fin d'une séance du soir.
+     */
+    private fun startRondeDemo(kind: String, pr: Progress, today: Long, random: Random) {
+        if (kind == "RONDE_EVENING") {
+            startEveningRondeDemo(pr, today, random)
+            return
+        }
+        val stop = content.stopByKey(if (kind.startsWith("RONDE_POSS")) "c4" else "c1")!!
+        val s = Ronde.full(content, pr, stop, today, random)
+        val second = kind.endsWith("_WRITE") || kind == "RONDE_INTRO2"
+        // La question montrée, en premier dans son tour : « nous (sans toi) », « tu », ou « je » au 2e tour.
+        val person = when (kind) {
+            "RONDE_YOU" -> Person.YOU
+            "RONDE_WRITE", "RONDE_POSS_WRITE" -> Person.ME
+            else -> Person.WE_EX
+        }
+        val target = s.steps.first { it is RondeStep && it.q.second == second && it.q.person == person }
+        s.steps.remove(target)
+        s.steps.add(s.steps.indexOfFirst { it is RondeIntroStep && it.second == second } + 1, target)
+        val stopAt: Step? = when (kind) {
+            "RONDE_INTRO", "RONDE_INTRO2" -> s.steps.first { it is RondeIntroStep && it.second == second }
+            "RONDE_END" -> null
+            else -> target
+        }
+        // Les questions d'avant sont faites. Pour l'écran de fin, deux erreurs : kita pour kami, et ka pour mo.
+        while (!s.finished && s.current !== stopAt) {
+            val step = s.current!!
+            s.onShown(step)
+            if (step is RondeStep) {
+                val q = step.q
+                val wrong = kind == "RONDE_END" && ((q.person == Person.WE_EX && !q.second) || (q.person == Person.YOU_PL && q.second))
+                s.submitRonde(step, if (wrong) demoWrong(q) else q.answer)
+            }
+            s.next()
+        }
+        run = Running(null, false, today, pr, s)
+        showCurrent()
+    }
+
+    /** La petite ronde de la leçon 1 à la fin d'une séance du soir, après 7 questions. */
+    private fun startEveningRondeDemo(pr: Progress, today: Long, random: Random) {
+        val built = Planner.build(content, pr, Slot.SOIR, Line.COMPLEX, today, random)
+        val steps = built.steps.filter { it !is RondeStep }.toMutableList()
+        while (steps.count { it is Exercise && it.graded } > Planner.EXERCISES - Ronde.MINI) {
+            steps.removeAt(steps.indexOfLast { it is Exercise && it.graded })
+        }
+        val ronde = Ronde.mini(content, pr, content.stopByKey("c1")!!, random)
+        steps.addAll(ronde)
+        val s = Session(content, pr, Slot.SOIR, Line.COMPLEX, today, steps, random)
+        while (!s.finished && s.current !== ronde.first()) {
+            val step = s.current!!
+            s.onShown(step)
+            if (step is Exercise) s.submit(step, true)
+            s.next()
+        }
+        run = Running(Slot.SOIR, false, today, pr, s)
+        showCurrent()
+    }
+
     private fun demoItem(ceb: String): Item = content.items.first { it.ceb == ceb }
 
     private fun demoExercise(kind: Kind, line: Line, pr: Progress, random: Random): Exercise {
@@ -1566,6 +2035,10 @@ class SessionActivity : Activity() {
         const val EXTRA_TRANSLATE = "translate"
         /** La clé d'un arrêt (« c7 ») : s'entraîner sur sa leçon. */
         const val EXTRA_PRACTICE = "practice"
+        /** La clé d'une leçon avec sa ronde des personnes (« c1 », « c4 »). */
+        const val EXTRA_RONDE = "ronde"
+        /** Après une bonne réponse, la ronde passe seule à la question suivante. */
+        private const val ADVANCE_MS = 1100L
         const val EXTRA_DEMO_STEP = "demoStep"
         const val EXTRA_DEMO_ANSWER = "demoAnswer"
         private const val M_IDLE = 0

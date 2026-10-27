@@ -20,12 +20,16 @@ enum class Kind {
     TRANSLATE_FR,
 }
 
-/** Ce que fait la série de questions : une séance du jour (ou un bonus), une traduction, ou s'entraîner sur une leçon. */
+/**
+ * Ce que fait la série de questions : une séance du jour (ou un bonus), une traduction, s'entraîner sur une leçon,
+ * ou la ronde des personnes (leçons 1 et 4).
+ */
 enum class Mode {
     SESSION,
     TRANSLATE_WORDS,
     TRANSLATE_PHRASES,
-    LESSON;
+    LESSON,
+    RONDE;
 
     val isTranslation get() = this == TRANSLATE_WORDS || this == TRANSLATE_PHRASES
 }
@@ -63,6 +67,15 @@ class Exercise(
         }
 }
 
+/** Une question de la ronde des personnes. */
+class RondeStep(val q: RondeQuestion) : Step()
+
+/** La présentation d'un tour de la ronde (1er ou 2e tour). */
+class RondeIntroStep(val stop: Stop, val second: Boolean) : Step()
+
+/** Une réponse donnée pendant la ronde, pour le tableau de fin. */
+class RondeAnswer(val q: RondeQuestion, val given: String, val check: RondeCheck)
+
 /** Ce que l'appli montre après une réponse. */
 class Feedback(val correct: Boolean, val change: Change?, val retry: Boolean)
 
@@ -89,6 +102,8 @@ class Session(
     val newItems = mutableListOf<Item>()
     /** Les mots ratés du premier coup (la liste « À revoir »). */
     val missed = mutableListOf<Item>()
+    /** Les réponses de la ronde des personnes, dans l'ordre. */
+    val rondeAnswers = mutableListOf<RondeAnswer>()
     private val retried = mutableSetOf<String>()
     private var undo: Undo? = null
 
@@ -104,7 +119,7 @@ class Session(
     )
 
     val current: Step? get() = steps.getOrNull(index)
-    val gradedTotal: Int get() = steps.count { it is Exercise && it.graded }
+    val gradedTotal: Int get() = steps.count { (it is Exercise && it.graded) || it is RondeStep }
     val finished get() = index >= steps.size
     val mixed get() = line == null
 
@@ -117,7 +132,19 @@ class Session(
             }
             is LessonStep -> progress.lessonsSeen.add(step.stop.key)
             is Exercise -> step.items.forEach { progress.introduce(it, today) }
+            is RondeStep, is RondeIntroStep -> {}
         }
+    }
+
+    /** Une réponse de la ronde : elle compte dans les bonnes réponses, et les personnes ratées reviendront le soir. */
+    fun submitRonde(step: RondeStep, given: String): RondeCheck {
+        undo = null
+        val check = Ronde.check(step.q, given)
+        gradedAnswered++
+        if (check.correct) correctFirst++
+        progress.rondeAnswer(step.q.stop, step.q.person, check.correct, today)
+        rondeAnswers.add(RondeAnswer(step.q, given, check))
+        return check
     }
 
     /**
@@ -153,9 +180,11 @@ class Session(
                 else -> Planner.firstKind(item)
             }
             val again = Planner.exercise(content, kind, item, graded = false, random = random)
-            // Un peu plus tard, mais jamais entre une carte « nouveau mot » et sa question.
+            // Un peu plus tard, mais jamais entre une carte « nouveau mot » et sa question, ni dans la ronde du soir.
             var at = (index + 3).coerceAtMost(steps.size)
             while (at < steps.size && (steps[at - 1] is NewStep || steps[at - 1] is LessonStep)) at++
+            val ronde = steps.indexOfFirst { it is RondeStep }
+            if (ronde > index && at > ronde) at = ronde
             steps.add(at, again)
             retry = true
         }
@@ -231,8 +260,12 @@ object Planner {
 
         // Le jeu « relier » : les nouveautés et quelques révisions courtes de la même ligne.
         val match = buildMatch(content, newItems, pool, progress, random)
+        // Le soir des phrases compliquées, parfois une petite ronde des personnes pour finir.
+        val ronde = if (slot == Slot.SOIR && line == Line.COMPLEX) {
+            Ronde.eveningLesson(content, progress, today)?.let { Ronde.mini(content, progress, it, random) } ?: emptyList()
+        } else emptyList()
         val introCount = newItems.size
-        val reviewCount = EXERCISES - introCount - (if (match != null) 1 else 0)
+        val reviewCount = EXERCISES - introCount - (if (match != null) 1 else 0) - ronde.size
         val reviewExercises = mutableListOf<Exercise>()
         while (reviewExercises.size < reviewCount && reviews.isNotEmpty()) {
             val item = reviews.removeFirst()
@@ -271,6 +304,7 @@ object Planner {
             steps.add(ex)
             graded.add(ex)
         }
+        steps.addAll(ronde)
         return Session(content, progress, slot, sessionLine, today, steps, random)
     }
 

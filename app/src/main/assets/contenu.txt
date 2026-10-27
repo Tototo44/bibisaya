@@ -12,6 +12,8 @@
 #     id: identifiant fixe (pour garder la progression si l'orthographe change)
 #   [bon|piège|piège|piège] : trou à compléter (la 1re réponse est la bonne)
 #   > intro: / > regle: forme | sens | exemple / > exemple: cebuano = français  (petite leçon)
+#   > ronde-adjectif: kusgan = fort, forte, forts, fortes  (la ronde des personnes : un adjectif et ses 4 formes)
+#   > ronde-nom: balay = la maison                         (ou un nom avec son article : Kini ang akong balay)
 #
 #   === FICHES : les fiches de l'onglet Leçons
 #   --- clé | Titre | sous-titre
@@ -486,6 +488,14 @@ Magkape ta. = On prend un café ?
 > regle: sila | ils, elles | Mga bata sila.
 > exemple: Estudyante siya. = Il est étudiant.
 > exemple: Maestro ko. = Je suis professeur.
+> ronde-adjectif: kusgan = fort, forte, forts, fortes
+> ronde-adjectif: buotan = gentil, gentille, gentils, gentilles
+> ronde-adjectif: kugihan = travailleur, travailleuse, travailleurs, travailleuses
+> ronde-adjectif: tapulan = paresseux, paresseuse, paresseux, paresseuses
+> ronde-adjectif: mubo = petit, petite, petits, petites
+> ronde-adjectif: dato = riche, riche, riches, riches
+> ronde-adjectif: pobre = pauvre, pauvre, pauvres, pauvres
+> ronde-adjectif: malipayon = heureux, heureuse, heureux, heureuses
 Taas [ako|ikaw|siya|sila]. = Je suis grand.
 Pilipino [ka|ko|siya|sila]. = Tu es philippin.
 Estudyante [siya|ako|ka|kami]. = Il est étudiant.
@@ -545,6 +555,19 @@ Mga estudyante [na|ni|to|ko]. = Ce sont des élèves (près de toi).
 > regle: nila · ilang | leur | higala nila
 > exemple: Unsa ang imong pangalan? = Comment t'appelles-tu ?
 > exemple: Taas ang akong lolo. = Mon grand-père est grand.
+> ronde-nom: balay = la maison
+> ronde-nom: libro = le livre
+> ronde-nom: iro = le chien
+> ronde-nom: amahan = le père
+> ronde-nom: inahan = la mère
+> ronde-nom: lolo = le grand-père
+> ronde-nom: lola = la grand-mère
+> ronde-nom: anak = l'enfant
+> ronde-nom: higala = l'ami
+> ronde-nom: kwarto = la chambre
+> ronde-nom: eskwelahan = l'école
+> ronde-nom: lamesa = la table
+> ronde-nom: maestro = le professeur
 Libro [nako|nimo|niya|nila] kini. = C'est mon livre.
 Nindot ang [imong|akong|iyang|ilang] balay. = Ta maison est belle.
 Buotan ang inahan [nimo|nako|niya|nila]. = Ta mère est gentille.

@@ -14,6 +14,7 @@ En plus des séances :
 
 - **Traduire** : 10 mots ou 10 phrases déjà vus, à écrire surtout en cebuano (et parfois en français). Les phrases sont corrigées mot par mot.
 - **Leçons** : les 11 leçons de grammaire, toutes ouvertes, avec un entraînement de 10 questions par leçon, et deux fiches tirées des cours (les mots pour poser une question, et le grand tableau des personnes).
+- **La ronde des personnes** (leçons 1 et 4) : une phrase, et la personne change à chaque question (je, tu, il, nous avec toi, nous sans toi, vous, ils). Un 1er tour où l'on touche la forme longue (ako, kita…) ou le mot avant la chose (akong balay), un 2e tour où l'on écrit la forme courte (ko, ta…) ou le mot après la chose (balay nako). Un petit dessin montre qui est dans « nous », et un tableau final montre les erreurs en rouge. Une petite ronde de 3 questions revient aussi, de temps en temps, à la fin des séances du soir.
 
 Tout reste sur le téléphone : pas de compte, pas besoin d'internet.
 

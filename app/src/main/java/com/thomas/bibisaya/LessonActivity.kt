@@ -48,6 +48,7 @@ class LessonActivity : Activity() {
             }, lp())
             val n = minOf(Planner.EXERCISES, stop.items.size)
             practice.addView(text("$n questions sur les phrases de cette leçon", 14f, 600, C.GRAY).apply { gravity = Gravity.CENTER }, lp())
+            if (stop.lesson?.ronde != null) practice.addView(rondeCard(stop.key), lp().apply { topMargin = dp(8) })
             body.addView(practice, lp().apply { topMargin = dp(4) })
         } else {
             addSheet(body, sheet!!)
@@ -61,6 +62,23 @@ class LessonActivity : Activity() {
         root.addView(scroll, lp(MATCH, 0, 1f))
         setContentView(root)
         edgeToEdge(root, top, scroll, lightNavigation = true)
+    }
+
+    /** La carte jaune de la ronde des personnes (leçons 1 et 4). */
+    private fun rondeCard(key: String): View {
+        val card = hbox(12).apply {
+            pad(14, 12, 14, 12)
+            box(C.YELLOW, 18, C.NAVY, 3, C.NAVY, 4)
+            contentDescription = "La ronde des personnes"
+            onTap { startActivity(Intent(this@LessonActivity, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_RONDE, key)) }
+        }
+        card.addView(PeopleView(this, null, labels = false))
+        val words = vbox(2)
+        words.addView(text("LA RONDE DES PERSONNES", 16f, 800, line = 1.1f))
+        words.addView(text("2 tours de 7 questions : la personne change à chaque fois", 14f, 600, line = 1.2f))
+        card.addView(words, lp(0, WRAP, 1f))
+        card.addIcon(R.drawable.ic_chevron, 20, C.NAVY)
+        return card
     }
 
     override fun onPause() {

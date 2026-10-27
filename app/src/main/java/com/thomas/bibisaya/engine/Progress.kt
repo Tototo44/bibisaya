@@ -68,6 +68,9 @@ class Progress {
     /** Les leçons et fiches ouvertes depuis l'onglet Leçons (elles restent montrées dans les séances). */
     val lessonsRead = mutableSetOf<String>()
     val daySlots = mutableMapOf<Long, MutableSet<Slot>>()
+    /** La ronde des personnes : les erreurs par personne (« c1:WE_EX » -> 2) et le dernier jour de ronde de chaque leçon. */
+    val rondeMisses = mutableMapOf<String, Int>()
+    val rondeDays = mutableMapOf<String, Long>()
 
     fun state(item: Item): ItemState? = items[item.id]
     fun isIntroduced(item: Item) = item.id in items
@@ -101,6 +104,21 @@ class Progress {
             s.dueDay = today
         }
         return Change(before, s.level, s.dueDay - today)
+    }
+
+    // ---------- La ronde des personnes ----------
+
+    fun misses(stop: Stop, person: Person) = rondeMisses["${stop.key}:${person.name}"] ?: 0
+
+    /**
+     * Une personne ratée revient plus souvent dans les petites rondes du soir. Il faut la réussir 2 fois
+     * pour effacer une erreur : réussie juste après, au 2e tour, elle revient quand même.
+     */
+    fun rondeAnswer(stop: Stop, person: Person, correct: Boolean, today: Long) {
+        val key = "${stop.key}:${person.name}"
+        val n = (rondeMisses[key] ?: 0) + if (correct) -1 else 2
+        if (n <= 0) rondeMisses.remove(key) else rondeMisses[key] = n.coerceAtMost(MAX_MISSES)
+        rondeDays[stop.key] = today
     }
 
     // ---------- Arrêts et lignes ----------
@@ -222,6 +240,8 @@ class Progress {
         append("lessons=${lessonsSeen.sorted().joinToString(",")}\n")
         append("read=${lessonsRead.sorted().joinToString(",")}\n")
         append("days=${daySlots.entries.joinToString(",") { e -> "${e.key}:${e.value.joinToString("") { it.code }}" }}\n")
+        append("ronde=${rondeMisses.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}" }}\n")
+        append("rondeDays=${rondeDays.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}" }}\n")
         for ((id, s) in items) append("i:$id=${s.level},${s.dueDay},${s.lastUpDay},${s.introDay}\n")
     }
 
@@ -232,6 +252,8 @@ class Progress {
         const val POINTS_ANSWER = 10
         const val POINTS_SESSION = 20
         const val POINTS_PERFECT_DAY = 50
+        /** Au plus 5 erreurs comptées par personne : quelques bonnes réponses suffisent pour qu'elle revienne moins. */
+        const val MAX_MISSES = 5
 
         /** Dans combien de jours un mot revient, selon son niveau. */
         fun interval(level: Int): Long = when (level) {
@@ -273,6 +295,12 @@ class Progress {
                         key == "days" -> value.split(',').filter { it.isNotBlank() }.forEach {
                             val slots = it.substringAfter(':').mapNotNull { c -> Slot.of(c.toString()) }
                             p.daySlots[it.substringBefore(':').toLong()] = slots.toMutableSet()
+                        }
+                        key == "ronde" -> value.split(',').filter { it.isNotBlank() }.forEach {
+                            p.rondeMisses[it.substringBeforeLast(':')] = it.substringAfterLast(':').toInt()
+                        }
+                        key == "rondeDays" -> value.split(',').filter { it.isNotBlank() }.forEach {
+                            p.rondeDays[it.substringBeforeLast(':')] = it.substringAfterLast(':').toLong()
                         }
                     }
                 } catch (e: Exception) {

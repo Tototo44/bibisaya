@@ -10,6 +10,7 @@ import com.thomas.bibisaya.engine.Outcome
 import com.thomas.bibisaya.engine.Plan
 import com.thomas.bibisaya.engine.Planner
 import com.thomas.bibisaya.engine.Progress
+import com.thomas.bibisaya.engine.RondeStep
 import com.thomas.bibisaya.engine.Session
 import com.thomas.bibisaya.engine.Slot
 import com.thomas.bibisaya.engine.Times
@@ -115,6 +116,7 @@ object Data {
                         val wrong = if (step.kind == Kind.MATCH && !ok) setOf(step.items.first()) else emptySet()
                         s.submit(step, ok, wrong)
                     }
+                    if (step is RondeStep) s.submitRonde(step, if (random.nextDouble() < 0.8) step.q.answer else "sila")
                     s.next()
                 }
                 pr.finishSession(content, slot, day, s.correctFirst, s.gradedTotal)

@@ -14,7 +14,14 @@ class Rule(val form: String, val meaning: String, val example: String)
 
 class Example(val ceb: String, val fr: String)
 
-class Lesson(val intro: String, val rules: List<Rule>, val examples: List<Example>)
+/** Une petite leçon. [ronde] : la leçon a sa « ronde des personnes », avec ces mots pour faire les phrases. */
+class Lesson(
+    val intro: String,
+    val rules: List<Rule>,
+    val examples: List<Example>,
+    val ronde: RondeKind? = null,
+    val rondeWords: List<RondeWord> = emptyList(),
+)
 
 /** Une ligne de la fiche « Les questions » : « unsa | quoi | Unsa ni? = Qu'est-ce que c'est ? ». */
 class SheetWord(val word: String, val meaning: String, val example: Example?)
@@ -156,6 +163,8 @@ class Content(
             var intro: String? = null
             var rules = mutableListOf<Rule>()
             var examples = mutableListOf<Example>()
+            var ronde: RondeKind? = null
+            var rondeWords = mutableListOf<RondeWord>()
             val sheets = mutableListOf<Sheet>()
             val sheet = SheetBuilder()
 
@@ -166,13 +175,15 @@ class Content(
                 }
                 val h = stopHeader ?: return
                 val line = Line.valueOf(section!!)
-                val lesson = intro?.let { Lesson(it, rules.toList(), examples.toList()) }
+                val lesson = intro?.let { Lesson(it, rules.toList(), examples.toList(), ronde, rondeWords.toList()) }
                 stops.getOrPut(line) { mutableListOf() }.add(Stop(line, h.first, h.second, h.third, lesson, items.toList()))
                 stopHeader = null
                 items = mutableListOf()
                 intro = null
                 rules = mutableListOf()
                 examples = mutableListOf()
+                ronde = null
+                rondeWords = mutableListOf()
             }
 
             for ((index, raw) in text.lines().withIndex()) {
@@ -214,6 +225,18 @@ class Content(
                             "exemple" -> {
                                 if (" = " !in value) fail("exemple sans « = »")
                                 examples.add(Example(value.substringBefore(" = ").trim(), value.substringAfter(" = ").trim()))
+                            }
+                            "ronde-adjectif", "ronde-nom" -> {
+                                val kind = if (key == "ronde-nom") RondeKind.POSSESSIVES else RondeKind.PRONOUNS
+                                if (ronde != null && ronde != kind) fail("une ronde d'adjectifs ou de noms, pas les deux")
+                                if (" = " !in value) fail("mot de ronde sans « = »")
+                                val fr = value.substringAfter(" = ").split(",").map { it.trim() }
+                                if (kind == RondeKind.PRONOUNS && fr.size != 4) fail("adjectif de ronde en 4 formes : fort, forte, forts, fortes")
+                                if (kind == RondeKind.POSSESSIVES && (fr.size != 1 || listOf("le ", "la ", "l'").none { fr[0].startsWith(it) })) {
+                                    fail("nom de ronde avec son article : la maison, le livre, l'école")
+                                }
+                                ronde = kind
+                                rondeWords.add(RondeWord(value.substringBefore(" = ").trim(), fr))
                             }
                             else -> fail("clé de leçon inconnue")
                         }

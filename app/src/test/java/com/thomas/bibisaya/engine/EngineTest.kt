@@ -347,6 +347,180 @@ class EngineTest {
         assertEquals("c7", content.stopByKey("c7")!!.key)
     }
 
+    // ---------- La ronde des personnes ----------
+
+    private val c1 get() = content.stopByKey("c1")!!
+    private val c4 get() = content.stopByKey("c4")!!
+
+    private fun question(stop: Stop, person: Person, second: Boolean, word: Int = 0, feminine: Boolean = false): RondeQuestion {
+        val kind = stop.lesson!!.ronde!!
+        val options = if (second) emptyList() else Person.values().map { kind.form(it, false) }
+        return RondeQuestion(stop, kind, stop.lesson!!.rondeWords[word], person, second, !second, options, feminine)
+    }
+
+    @Test
+    fun rondeContent() {
+        assertEquals(RondeKind.PRONOUNS, c1.lesson!!.ronde)
+        assertEquals(RondeKind.POSSESSIVES, c4.lesson!!.ronde)
+        assertEquals(listOf("c1", "c4"), content.lessons.filter { it.lesson!!.ronde != null }.map { it.key })
+        for (stop in listOf(c1, c4)) {
+            val words = stop.lesson!!.rondeWords
+            assertTrue(words.size >= 6)
+            // Que des mots du vocabulaire : Thomas les a déjà vus (ou les verra), et ils se touchent pour voir leur sens.
+            for (w in words) assertNotNull("${w.ceb} dans le vocabulaire", Ronde.vocab(content, w))
+            for (second in listOf(false, true)) {
+                val forms = Person.values().map { stop.lesson!!.ronde!!.form(it, second) }
+                assertEquals("7 formes différentes", 7, forms.toSet().size)
+            }
+        }
+        // Après le mot, « tu » se dit ka (ikaw seulement en début de phrase).
+        assertEquals("ka", RondeKind.PRONOUNS.form(Person.YOU, false))
+        assertEquals(listOf("ako", "ka", "siya", "kita", "kami", "kamo", "sila"), Person.values().map { RondeKind.PRONOUNS.form(it, false) })
+        assertEquals(listOf("ko", "ka", "siya", "ta", "mi", "mo", "sila"), Person.values().map { RondeKind.PRONOUNS.form(it, true) })
+        assertEquals(listOf("akong", "imong", "iyang", "atong", "among", "inyong", "ilang"), Person.values().map { RondeKind.POSSESSIVES.form(it, false) })
+        assertEquals(listOf("nako", "nimo", "niya", "nato", "namo", "ninyo", "nila"), Person.values().map { RondeKind.POSSESSIVES.form(it, true) })
+    }
+
+    @Test
+    fun rondeSentencesInBothLanguages() {
+        val kusgan = c1.lesson!!.rondeWords.indexOfFirst { it.ceb == "kusgan" }
+        assertEquals("Kusgan kami.", question(c1, Person.WE_EX, false, kusgan).sentence)
+        assertEquals("Nous sommes forts (pas toi).", question(c1, Person.WE_EX, false, kusgan).french)
+        assertEquals("Nous sommes forts (toi et moi).", question(c1, Person.WE_IN, true, kusgan).french)
+        assertEquals("Kusgan ta.", question(c1, Person.WE_IN, true, kusgan).sentence)
+        assertEquals("Elle est forte.", question(c1, Person.HE, false, kusgan, feminine = true).french)
+        assertEquals("Ils sont forts.", question(c1, Person.THEY, false, kusgan).french)
+        assertEquals("Elles sont fortes.", question(c1, Person.THEY, false, kusgan, feminine = true).french)
+        assertEquals("Kusgan ka.", question(c1, Person.YOU, false, kusgan).sentence)
+        val balay = c4.lesson!!.rondeWords.indexOfFirst { it.ceb == "balay" }
+        assertEquals("Kini ang akong balay.", question(c4, Person.ME, false, balay).sentence)
+        assertEquals("Kini ang balay nako.", question(c4, Person.ME, true, balay).sentence)
+        assertEquals("Voici ma maison.", question(c4, Person.ME, true, balay).french)
+        assertEquals("Voici notre maison (à toi et moi).", question(c4, Person.WE_IN, false, balay).french)
+        assertEquals("Voici leur maison.", question(c4, Person.THEY, false, balay).french)
+        val school = c4.lesson!!.rondeWords.indexOfFirst { it.ceb == "eskwelahan" }
+        assertEquals("devant une voyelle : mon", "Voici mon école.", question(c4, Person.ME, false, school).french)
+        assertEquals("Voici son école.", question(c4, Person.HE, false, school).french)
+        val book = c4.lesson!!.rondeWords.indexOfFirst { it.ceb == "libro" }
+        assertEquals("Voici ton livre.", question(c4, Person.YOU, false, book).french)
+        // Toutes les phrases se font, pour toutes les personnes et tous les mots.
+        for (stop in listOf(c1, c4)) for (w in stop.lesson!!.rondeWords.indices) for (p in Person.values()) for (second in listOf(false, true)) {
+            val q = question(stop, p, second, w)
+            assertTrue(q.french, q.french.endsWith(".") && "  " !in q.french)
+            assertTrue(q.sentence, q.sentence.endsWith(".") && q.sentence.first().isUpperCase())
+        }
+    }
+
+    @Test
+    fun rondeAnswersAreChecked() {
+        fun check(q: RondeQuestion, given: String) = Ronde.check(q, given)
+        // Leçon 1, 1er tour : « tu », c'est ka, et l'appli dit pourquoi.
+        val you = check(question(c1, Person.YOU, false), "ka")
+        assertTrue(you.correct)
+        assertEquals(Ronde.YOU_NOTE, you.note)
+        assertEquals(null, check(question(c1, Person.WE_EX, false), "kami").note)
+        val wrongWe = check(question(c1, Person.WE_EX, false), "kita")
+        assertFalse(wrongWe.correct)
+        assertEquals("**kita**, c'est « nous (avec toi) ». Pour « nous (sans toi) », c'est **kami**.", wrongWe.note)
+        // Leçon 1, 2e tour : la forme courte, mais la forme longue est juste aussi.
+        val me = question(c1, Person.ME, true)
+        assertTrue(check(me, "ko").correct)
+        assertEquals(null, check(me, " Ko ").note)
+        assertTrue(check(me, "${me.word.ceb} ko").correct)
+        val long = check(me, "ako")
+        assertTrue(long.correct)
+        assertTrue(long.note!!.startsWith("La forme courte, c'est **ko**"))
+        val ikaw = check(question(c1, Person.YOU, true), "ikaw")
+        assertTrue(ikaw.correct)
+        assertTrue(ikaw.note!!.contains("**ka**"))
+        assertFalse(check(me, "ka").correct)
+        assertEquals("**ka**, c'est « tu ». Pour « je », c'est **ko**.", check(me, "ka").note)
+        assertEquals("**mo**, c'est « vous ». Pour « tu », c'est **ka**.", check(question(c1, Person.YOU, true), "mo").note)
+        assertTrue(check(me, "nako").note!!.contains("leçon 4"))
+        assertEquals("La bonne réponse est **ko**.", check(me, "bata").note)
+        assertFalse("pas de faute de frappe permise", check(question(c1, Person.WE_EX, true), "mo").correct)
+        // Leçon 4 : avant ou après la chose.
+        val mine = question(c4, Person.ME, true, c4.lesson!!.rondeWords.indexOfFirst { it.ceb == "balay" })
+        assertTrue(check(mine, "nako").correct)
+        assertTrue(check(mine, "Kini ang balay nako").correct)
+        val ko = check(mine, "ko")
+        assertTrue(ko.correct)
+        assertEquals("On dit aussi **nako** : Kini ang balay nako.", ko.note)
+        val before = check(mine, "akong")
+        assertFalse(before.correct)
+        assertEquals("**akong** se met avant la chose : akong balay. Après, c'est **nako** : balay nako.", before.note)
+        assertEquals("**nimo**, c'est « à toi ». Pour « à moi », c'est **nako**.", check(mine, "nimo").note)
+        assertEquals("**mo**, c'est « à toi ». Pour « à vous », c'est **ninyo**.", check(question(c4, Person.YOU_PL, true), "mo").note)
+        val among = check(question(c4, Person.WE_EX, false), "atong")
+        assertFalse(among.correct)
+        assertEquals("**atong**, c'est « à nous (avec toi) ». Pour « à nous (sans toi) », c'est **among**.", among.note)
+    }
+
+    @Test
+    fun theFullRondeHasTwoRoundsOfSeven() {
+        val p = Progress().apply { installDay = 0 }
+        val s = Ronde.full(content, p, c1, 10, Random(3))
+        assertEquals(Mode.RONDE, s.mode)
+        assertEquals(c1, s.stop)
+        assertEquals(16, s.steps.size)
+        assertEquals(14, s.gradedTotal)
+        assertTrue(s.steps[0] is RondeIntroStep && s.steps[8] is RondeIntroStep)
+        val first = s.steps.subList(1, 8).map { (it as RondeStep).q }
+        val second = s.steps.subList(9, 16).map { (it as RondeStep).q }
+        assertEquals(Person.values().toSet(), first.map { it.person }.toSet())
+        assertEquals(Person.values().toSet(), second.map { it.person }.toSet())
+        assertTrue(first.all { it.tap && !it.second && it.options.size == 7 && it.answer in it.options && it.options == first[0].options })
+        assertTrue(second.all { !it.tap && it.second && it.options.isEmpty() })
+        assertEquals("un mot par tour", 1, first.map { it.word }.toSet().size)
+        assertTrue("un autre mot au 2e tour", first[0].word != second[0].word)
+        checkSteps(s)
+        // Deux erreurs : elles sont gardées pour le tableau de fin, et ces personnes reviendront le soir.
+        var n = 0
+        while (!s.finished) {
+            val step = s.current!!
+            s.onShown(step)
+            if (step is RondeStep) s.submitRonde(step, if (n++ in setOf(2, 9)) "xyz" else step.q.answer)
+            s.next()
+        }
+        assertEquals(14, s.rondeAnswers.size)
+        assertEquals(12, s.correctFirst)
+        assertEquals(14, s.gradedAnswered)
+        val missed = s.rondeAnswers.filter { !it.check.correct }.map { it.q.person }
+        assertEquals(2, missed.size)
+        for (person in missed) assertTrue(p.misses(c1, person) >= 1)
+        assertEquals(10L, p.rondeDays["c1"])
+        assertEquals(12 * Progress.POINTS_ANSWER, p.finishPractice(content, 10, s.correctFirst).points)
+    }
+
+    @Test
+    fun aSmallRondeSometimesEndsTheEvening() {
+        val p = Progress().apply { installDay = 0 }
+        assertEquals("pas avant d'avoir vu la leçon 1", null, Ronde.eveningLesson(content, p, 0))
+        p.lessonsSeen.add("c1")
+        p.rondeMisses["c1:WE_EX"] = 3
+        val s = Planner.build(content, p, Slot.SOIR, Line.COMPLEX, 2, Random(4))
+        assertEquals(10, s.gradedTotal)
+        val ronde = s.steps.filterIsInstance<RondeStep>()
+        assertEquals(Ronde.MINI, ronde.size)
+        assertEquals("à la fin de la séance", ronde, s.steps.takeLast(Ronde.MINI))
+        assertEquals("la personne la plus ratée d'abord", Person.WE_EX, ronde.first().q.person)
+        assertEquals(listOf(true, true, false), ronde.map { it.q.tap })
+        assertEquals(1, ronde.map { it.q.word }.toSet().size)
+        checkSteps(s)
+        playSession(s, Random(5), 1.0)
+        assertEquals(2L, p.rondeDays["c1"])
+        assertEquals("une bonne réponse : elle revient un peu moins", 2, p.misses(c1, Person.WE_EX))
+        // Pas tous les soirs : au plus tous les 3 jours, et pas le matin ni les soirs de vocabulaire.
+        assertTrue(Planner.build(content, p, Slot.SOIR, Line.COMPLEX, 4, Random(6)).steps.none { it is RondeStep })
+        assertTrue(Planner.build(content, p, Slot.MATIN, Line.VOCAB, 6, Random(6)).steps.none { it is RondeStep })
+        assertTrue(Planner.build(content, p, Slot.SOIR, Line.VOCAB, 6, Random(6)).steps.none { it is RondeStep })
+        // La leçon 4 vue aussi : sa ronde passe d'abord (elle n'a encore jamais été faite).
+        p.lessonsSeen.add("c4")
+        val later = Planner.build(content, p, Slot.SOIR, Line.COMPLEX, 6, Random(7))
+        assertEquals(10, later.gradedTotal)
+        assertTrue(later.steps.filterIsInstance<RondeStep>().all { it.q.stop == c4 && it.q.kind == RondeKind.POSSESSIVES })
+    }
+
     // ---------- Les révisions ----------
 
     @Test
@@ -520,6 +694,8 @@ class EngineTest {
         p.lessonsRead.add("c4")
         p.lessonsRead.add("questions")
         p.completedStops.add("v1")
+        p.rondeAnswer(content.stopByKey("c1")!!, Person.WE_EX, false, 20000)
+        p.rondeAnswer(content.stopByKey("c4")!!, Person.THEY, false, 19998)
         val copy = Progress.decode(p.encode())
         assertEquals(p.encode(), copy.encode())
         assertEquals(p.items.size, copy.items.size)
@@ -527,6 +703,8 @@ class EngineTest {
         assertEquals(p.slotsDone(20000), copy.slotsDone(20000))
         assertEquals(p.badges.keys.toList(), copy.badges.keys.toList())
         assertEquals(setOf("c4", "questions"), copy.lessonsRead)
+        assertEquals(mapOf("c1:WE_EX" to 2, "c4:THEY" to 2), copy.rondeMisses)
+        assertEquals(mapOf("c1" to 20000L, "c4" to 19998L), copy.rondeDays)
         assertEquals(0, Progress.decode(null).items.size)
         assertEquals(0, Progress.decode("n'importe quoi\ni:x=abc").items.size)
     }
@@ -582,6 +760,10 @@ class EngineTest {
                 val wrong = if (step.kind == Kind.MATCH && !ok) setOf(step.items.random(random)) else emptySet()
                 s.submit(step, ok, wrong)
             }
+            if (step is RondeStep) {
+                val ok = random.nextDouble() < accuracy
+                assertEquals(ok, s.submitRonde(step, if (ok) step.q.answer else "bata").correct)
+            }
             s.next()
         }
     }
@@ -593,6 +775,12 @@ class EngineTest {
                 is LessonStep -> assertTrue(s.steps[i + 1] is NewStep)
                 is NewStep -> assertEquals(step.item, (s.steps[i + 1] as Exercise).item)
                 is Exercise -> checkExercise(step)
+                is RondeIntroStep -> assertTrue(s.steps[i + 1] is RondeStep)
+                is RondeStep -> {
+                    val q = step.q
+                    if (q.tap) assertEquals(Person.values().map { q.kind.form(it, q.second) }.toSet(), q.options.toSet())
+                    assertTrue(Ronde.check(q, q.answer).correct)
+                }
             }
         }
     }
